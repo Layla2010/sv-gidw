@@ -19,7 +19,8 @@ function parseLocalDate(str: string): Date {
 
 function DeadlineBadge({ deadline }: { deadline: string }) {
   const date = parseLocalDate(deadline)
-  const daysLeft = differenceInDays(date, new Date())
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const daysLeft = differenceInDays(date, today)
 
   if (isPast(date) && !isToday(date)) {
     return <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full"><AlertCircle size={11} /> Überfällig</span>

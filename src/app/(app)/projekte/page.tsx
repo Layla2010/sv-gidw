@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { format } from 'date-fns'
@@ -22,6 +23,7 @@ export default function ProjektePage() {
   const [hasParticipants, setHasParticipants] = useState(false)
   const [template, setTemplate] = useState<string>('overnight')
   const supabase = createClient()
+  const router = useRouter()
 
   async function loadProjects() {
     const { data } = await supabase
@@ -46,12 +48,7 @@ export default function ProjektePage() {
       .select()
       .single()
     if (data) {
-      setName('')
-      setDescription('')
-      setHasParticipants(false)
-      setTemplate('overnight')
-      setShowNew(false)
-      loadProjects()
+      router.push(`/projekte/${data.id}`)
     }
   }
 
@@ -140,13 +137,13 @@ export default function ProjektePage() {
         </div>
       )}
 
-      {projects.length === 0 ? (
+      {!showNew && projects.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
           <FolderOpen size={40} className="mx-auto text-gray-300 mb-3" />
           <p className="text-gray-500 font-medium">Noch keine Projekte</p>
           <p className="text-sm text-gray-400 mt-1">Erstelle ein neues Projekt um zu beginnen.</p>
         </div>
-      ) : (
+      ) : !showNew ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {projects.map(project => (
             <div

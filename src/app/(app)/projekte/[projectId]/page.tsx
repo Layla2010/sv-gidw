@@ -36,7 +36,8 @@ function parseLocalDate(str: string): Date {
 
 function DeadlineChip({ deadline }: { deadline: string }) {
   const date = parseLocalDate(deadline)
-  const daysLeft = differenceInDays(date, new Date())
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const daysLeft = differenceInDays(date, today)
   if (isPast(date) && !isToday(date))
     return <span className="text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full flex items-center gap-1"><AlertCircle size={10} /> Überfällig</span>
   if (daysLeft <= 2)
@@ -295,7 +296,13 @@ export default function ProjectPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {tasks.map(task => (
+                  {[...tasks].sort((a, b) => {
+                    if (a.erledigt !== b.erledigt) return a.erledigt ? 1 : -1
+                    if (!a.deadline && !b.deadline) return 0
+                    if (!a.deadline) return 1
+                    if (!b.deadline) return -1
+                    return a.deadline.localeCompare(b.deadline)
+                  }).map(task => (
                     <tr key={task.id} className={`hover:bg-gray-50 ${task.erledigt ? 'opacity-50' : ''}`}>
                       <td className="px-4 py-3">
                         <button onClick={() => toggleTask(task.id, task.erledigt)}>
