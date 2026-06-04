@@ -27,7 +27,7 @@ const COL_LABELS: Record<string, string> = {
   raum: 'Raum', ueber_nacht: 'Ü.Nacht', buffet: 'Buffet', gegangen: 'Gegangen', sonstiges: 'Sonstiges',
 }
 
-const BOOL_COLS = new Set(['anwesend', 'ueber_nacht', 'buffet', 'gegangen'])
+const BOOL_COLS = new Set(['anwesend', 'ueber_nacht', 'gegangen'])
 
 function parseLocalDate(str: string): Date {
   const [y, m, d] = str.split('-').map(Number)
@@ -390,7 +390,7 @@ export default function ProjectPage() {
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
                     {cols.map(col => (
-                      <th key={col} className="text-left px-3 py-3 font-medium text-gray-600 whitespace-nowrap">
+                      <th key={col} className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap text-xs">
                         {COL_LABELS[col]}
                       </th>
                     ))}
@@ -401,26 +401,28 @@ export default function ProjectPage() {
                   {participants.map(p => (
                     <tr key={p.id} className="hover:bg-gray-50">
                       {cols.map(col => (
-                        <td key={col} className="px-3 py-2">
+                        <td key={col} className="px-1 py-1">
                           {BOOL_COLS.has(col) ? (
-                            <input
-                              type="checkbox"
-                              checked={!!(p[col as keyof Participant])}
-                              onChange={e => updateParticipant(p.id, col, e.target.checked)}
-                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
+                            <div className="flex justify-center">
+                              <input
+                                type="checkbox"
+                                checked={!!(p[col as keyof Participant])}
+                                onChange={e => updateParticipant(p.id, col, e.target.checked)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                            </div>
                           ) : (
                             <input
                               type="text"
                               value={(p[col as keyof Participant] as string) ?? ''}
                               onChange={e => updateParticipant(p.id, col, e.target.value)}
-                              className="w-full min-w-[80px] px-2 py-1 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded-md text-sm focus:outline-none bg-transparent"
+                              className="min-w-[60px] px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
                               placeholder="—"
                             />
                           )}
                         </td>
                       ))}
-                      <td className="px-3 py-2">
+                      <td className="px-1 py-1">
                         <button onClick={() => deleteParticipant(p.id)} className="p-1 text-gray-300 hover:text-red-500">
                           <Trash2 size={14} />
                         </button>
