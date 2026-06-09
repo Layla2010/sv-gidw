@@ -8,6 +8,7 @@ import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { Plus, FolderOpen, Trash2, Users } from 'lucide-react'
 import type { Project } from '@/types'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 const TEMPLATES = [
   { value: 'overnight', label: 'Übernachtungs-Event (z.B. Lesenacht, AVN)' },
@@ -18,6 +19,7 @@ const TEMPLATES = [
 export default function ProjektePage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [showNew, setShowNew] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [hasParticipants, setHasParticipants] = useState(false)
@@ -53,13 +55,20 @@ export default function ProjektePage() {
   }
 
   async function deleteProject(id: string) {
-    if (!confirm('Projekt und alle Inhalte wirklich löschen?')) return
     await supabase.from('projects').delete().eq('id', id)
+    setConfirmDeleteId(null)
     loadProjects()
   }
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
+      {confirmDeleteId && (
+        <ConfirmDialog
+          message="Das Projekt und alle Inhalte werden unwiderruflich gelöscht."
+          onConfirm={() => deleteProject(confirmDeleteId)}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
+      )}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Projekte</h1>
         <button
@@ -146,27 +155,23 @@ export default function ProjektePage() {
       ) : !showNew ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {projects.map(project => (
-            <div
-              key={project.id}
-              className="bg-white border border-gray-200 rounded-xl p-5 hover:border-blue-200 transition-colors group"
-            >
+            <div key={project.id} className="relative bg-white border border-gray-200 rounded-xl p-5 hover:border-blue-200 transition-colors group">
+              <Link href={`/projekte/${project.id}`} className="absolute inset-0 rounded-xl" />
               <div className="flex items-start justify-between mb-3">
                 <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <FolderOpen size={20} className="text-blue-600" />
                 </div>
                 <button
-                  onClick={() => deleteProject(project.id)}
-                  className="p-1.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => setConfirmDeleteId(project.id)}
+                  className="relative z-10 p-1.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <Trash2 size={15} />
                 </button>
               </div>
-              <Link href={`/projekte/${project.id}`}>
-                <h3 className="font-semibold text-gray-900 hover:text-blue-600 mb-1">{project.name}</h3>
-                {project.description && (
-                  <p className="text-sm text-gray-500 line-clamp-2 mb-2">{project.description}</p>
-                )}
-              </Link>
+              <h3 className="font-semibold text-gray-900 mb-1">{project.name}</h3>
+              {project.description && (
+                <p className="text-sm text-gray-500 line-clamp-2 mb-2">{project.description}</p>
+              )}
               <div className="flex items-center gap-3 mt-3">
                 <span className="text-xs text-gray-400">
                   {format(new Date(project.created_at), 'd. MMM yyyy', { locale: de })}

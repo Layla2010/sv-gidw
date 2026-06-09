@@ -34,6 +34,25 @@ function DeadlineBadge({ deadline }: { deadline: string }) {
   return <span className="text-xs text-gray-500">{format(date, 'd. MMM', { locale: de })}</span>
 }
 
+function Widget({ title, linkHref, linkLabel, children }: {
+  title: string
+  linkHref?: string
+  linkLabel?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col min-h-0 h-full">
+      <div className="flex items-center justify-between mb-3 flex-shrink-0">
+        <h2 className="font-semibold text-gray-900 text-sm">{title}</h2>
+        {linkHref && <Link href={linkHref} className="text-xs text-blue-600 hover:underline">{linkLabel}</Link>}
+      </div>
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {children}
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const [tasks, setTasks] = useState<TaskWithProject[]>([])
   const [recentDocs, setRecentDocs] = useState<Document[]>([])
@@ -44,28 +63,10 @@ export default function DashboardPage() {
   useEffect(() => {
     async function load() {
       const [tasksRes, docsRes, protocolsRes, projectsRes] = await Promise.all([
-        supabase
-          .from('tasks')
-          .select('*, projects(id, name)')
-          .eq('erledigt', false)
-          .not('deadline', 'is', null)
-          .order('deadline', { ascending: true })
-          .limit(10),
-        supabase
-          .from('documents')
-          .select('*')
-          .order('updated_at', { ascending: false })
-          .limit(5),
-        supabase
-          .from('protocols')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(3),
-        supabase
-          .from('projects')
-          .select('*')
-          .order('updated_at', { ascending: false })
-          .limit(5),
+        supabase.from('tasks').select('*, projects(id, name)').eq('erledigt', false).not('deadline', 'is', null).order('deadline', { ascending: true }).limit(20),
+        supabase.from('documents').select('*').not('title', 'eq', '__satzung__').order('updated_at', { ascending: false }).limit(10),
+        supabase.from('protocols').select('*').order('created_at', { ascending: false }).limit(5),
+        supabase.from('projects').select('*').order('updated_at', { ascending: false }).limit(10),
       ])
       setTasks(tasksRes.data ?? [])
       setRecentDocs(docsRes.data ?? [])
@@ -76,126 +77,105 @@ export default function DashboardPage() {
   }, [])
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-semibold text-gray-900 mb-6">Dashboard</h1>
+    <div className="h-full flex flex-col p-4 gap-4">
+      <h1 className="text-xl font-semibold text-gray-900 flex-shrink-0">Dashboard</h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Desktop: 2 Zeilen. Mobile: gestapelt */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-rows-[3fr_2fr] lg:grid-cols-3 gap-4">
+
         {/* Offene Aufgaben */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-900">Offene Aufgaben</h2>
-            <Link href="/projekte" className="text-sm text-blue-600 hover:underline">Alle Projekte →</Link>
-          </div>
-
-          {tasks.length === 0 ? (
-            <div className="text-center py-8">
-              <CheckCircle2 size={32} className="mx-auto text-gray-300 mb-2" />
-              <p className="text-sm text-gray-500">Keine offenen Aufgaben mit Deadline</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {tasks.map(task => (
-                <div key={task.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{task.aufgabe}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      {task.projects && (
-                        <Link
-                          href={`/projekte/${task.projects.id}`}
-                          className="text-xs text-gray-500 hover:text-blue-600"
-                        >
-                          {task.projects.name}
-                        </Link>
-                      )}
-                      {task.verantwortliche && (
-                        <span className="text-xs text-gray-400">· {task.verantwortliche}</span>
-                      )}
+        <div className="lg:col-span-2 lg:row-span-1 min-h-0">
+          <Widget title="Offene Aufgaben" linkHref="/projekte" linkLabel="Alle Projekte →">
+            {tasks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full py-4">
+                <CheckCircle2 size={28} className="text-gray-300 mb-2" />
+                <p className="text-sm text-gray-500">Keine offenen Aufgaben mit Deadline</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {tasks.map(task => (
+                  <Link key={task.id} href={`/projekte/${task.projects?.id}#task-${task.id}`} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-50">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{task.aufgabe}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {task.projects && (
+                          <span className="text-xs text-gray-500">{task.projects.name}</span>
+                        )}
+                        {task.verantwortliche && (
+                          <span className="text-xs text-gray-400">· {task.verantwortliche}</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  {task.deadline && <DeadlineBadge deadline={task.deadline} />}
-                </div>
-              ))}
-            </div>
-          )}
+                    {task.deadline && <DeadlineBadge deadline={task.deadline} />}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </Widget>
         </div>
 
         {/* Aktive Projekte */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-900">Aktive Projekte</h2>
-            <Link href="/projekte" className="text-sm text-blue-600 hover:underline">Alle →</Link>
-          </div>
-
-          {projects.length === 0 ? (
-            <div className="text-center py-8">
-              <FolderOpen size={32} className="mx-auto text-gray-300 mb-2" />
-              <p className="text-sm text-gray-500">Noch keine Projekte</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {projects.map(project => (
-                <Link
-                  key={project.id}
-                  href={`/projekte/${project.id}`}
-                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 group"
-                >
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <FolderOpen size={16} className="text-blue-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600">{project.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {format(new Date(project.updated_at), 'd. MMM', { locale: de })}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
+        <div className="lg:col-span-1 lg:row-span-1 min-h-0">
+          <Widget title="Aktive Projekte" linkHref="/projekte" linkLabel="Alle →">
+            {projects.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full py-4">
+                <FolderOpen size={28} className="text-gray-300 mb-2" />
+                <p className="text-sm text-gray-500">Noch keine Projekte</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {projects.map(project => (
+                  <Link key={project.id} href={`/projekte/${project.id}`}
+                    className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-50 group">
+                    <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <FolderOpen size={14} className="text-blue-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600">{project.name}</p>
+                      <p className="text-xs text-gray-500">{format(new Date(project.updated_at), 'd. MMM', { locale: de })}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </Widget>
         </div>
 
         {/* Zuletzt bearbeitet */}
-        <div className="lg:col-span-3 bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">Zuletzt bearbeitet</h2>
-
-          {recentDocs.length === 0 && recentProtocols.length === 0 ? (
-            <div className="text-center py-8">
-              <FileText size={32} className="mx-auto text-gray-300 mb-2" />
-              <p className="text-sm text-gray-500">Noch keine Dokumente</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {recentDocs.map(doc => (
-                <Link
-                  key={doc.id}
-                  href={`/allgemeine-sv-arbeit/${doc.id}`}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-colors"
-                >
-                  <FileText size={16} className="text-blue-500 flex-shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{doc.title}</p>
-                    <p className="text-xs text-gray-500">
-                      {format(new Date(doc.updated_at), 'd. MMM', { locale: de })}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-              {recentProtocols.map(protocol => (
-                <div
-                  key={protocol.id}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-gray-100"
-                >
-                  <FileText size={16} className="text-gray-400 flex-shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{protocol.title}</p>
-                    <p className="text-xs text-gray-500">
-                      Protokoll · {format(new Date(protocol.meeting_date), 'd. MMM', { locale: de })}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+        <div className="lg:col-span-3 min-h-0">
+          <Widget title="Zuletzt bearbeitet">
+            {recentDocs.length === 0 && recentProtocols.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full py-4">
+                <FileText size={28} className="text-gray-300 mb-2" />
+                <p className="text-sm text-gray-500">Noch keine Dokumente</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                {[...recentDocs, ...recentProtocols].map((item, i) => {
+                  const isDoc = 'content' in item
+                  return isDoc ? (
+                    <Link key={item.id} href={`/allgemeine-sv-arbeit/${item.id}`}
+                      className="flex items-center gap-2 p-2.5 rounded-lg border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-colors">
+                      <FileText size={14} className="text-blue-500 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-gray-900 truncate">{(item as Document).title}</p>
+                        <p className="text-xs text-gray-400">{format(new Date((item as Document).updated_at), 'd. MMM', { locale: de })}</p>
+                      </div>
+                    </Link>
+                  ) : (
+                    <div key={item.id}
+                      className="flex items-center gap-2 p-2.5 rounded-lg border border-gray-100">
+                      <FileText size={14} className="text-gray-400 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-gray-900 truncate">{(item as Protocol).title}</p>
+                        <p className="text-xs text-gray-400">Protokoll · {format(new Date((item as Protocol).meeting_date), 'd. MMM', { locale: de })}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </Widget>
         </div>
       </div>
     </div>

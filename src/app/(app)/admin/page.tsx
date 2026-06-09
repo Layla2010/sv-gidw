@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { UserPlus, Shield, User, Trash2, Mail } from 'lucide-react'
 import type { Profile } from '@/types'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 export default function AdminPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -17,6 +18,7 @@ export default function AdminPage() {
   const [inviteError, setInviteError] = useState('')
   const [inviteSuccess, setInviteSuccess] = useState('')
   const [loading, setLoading] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const supabase = createClient()
 
   async function loadData() {
@@ -38,30 +40,18 @@ export default function AdminPage() {
     setInviteError('')
     setInviteSuccess('')
 
-    const { error } = await supabase.auth.admin.inviteUserByEmail(inviteEmail.trim(), {
-      data: { full_name: inviteName.trim() },
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await supabase.functions.invoke('invite-user', {
+      body: { email: inviteEmail.trim(), full_name: inviteName.trim(), role: inviteRole },
     })
 
-    if (error) {
-      // Fallback: use the standard invite if admin API not available
-      setInviteError(`Einladung konnte nicht gesendet werden: ${error.message}. Bitte nutze das Supabase Dashboard.`)
+    if (res.error || res.data?.error) {
+      setInviteError(`Einladung konnte nicht gesendet werden: ${res.error?.message ?? res.data?.error}`)
       setLoading(false)
       return
     }
 
-    // Set role if needed
-    if (inviteRole === 'admin') {
-      const { data: newUser } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', inviteEmail.trim())
-        .single()
-      if (newUser) {
-        await supabase.from('profiles').update({ role: 'admin' }).eq('id', newUser.id)
-      }
-    }
-
-    setInviteSuccess(`Einladung an ${inviteEmail} gesendet.`)
+    setInviteSuccess(`Einladung an ${inviteEmail.trim()} gesendet.`)
     setInviteEmail('')
     setInviteName('')
     setInviteRole('mitglied')
@@ -76,9 +66,8 @@ export default function AdminPage() {
   }
 
   async function deleteUser(id: string) {
-    if (id === currentUser?.id) { alert('Du kannst deinen eigenen Account nicht löschen.'); return }
-    if (!confirm('Account wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) return
     await supabase.from('profiles').delete().eq('id', id)
+    setConfirmDeleteId(null)
     loadData()
   }
 
@@ -92,6 +81,16 @@ export default function AdminPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
+      {confirmDeleteId && (() => {
+        const user = profiles.find(p => p.id === confirmDeleteId)
+        return user ? (
+          <ConfirmDialog
+            message={`Der Account von "${user.full_name || user.email}" wird unwiderruflich gelöscht.`}
+            onConfirm={() => deleteUser(confirmDeleteId)}
+            onCancel={() => setConfirmDeleteId(null)}
+          />
+        ) : null
+      })()}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Admin — Nutzerverwaltung</h1>
         <button
@@ -196,7 +195,7 @@ export default function AdminPage() {
                 <td className="px-4 py-3">
                   {p.id !== currentUser?.id && (
                     <button
-                      onClick={() => deleteUser(p.id)}
+                      onClick={() => p.id !== currentUser?.id && setConfirmDeleteId(p.id)}
                       className="p-1 text-gray-300 hover:text-red-500"
                     >
                       <Trash2 size={14} />

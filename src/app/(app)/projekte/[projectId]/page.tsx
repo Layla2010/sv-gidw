@@ -8,9 +8,10 @@ import { format, differenceInDays, isPast, isToday } from 'date-fns'
 import { de } from 'date-fns/locale'
 import {
   ArrowLeft, Plus, Trash2, Upload, Download, AlertCircle,
-  Clock, CheckSquare, Square, Users, File, FolderOpen,
+  Clock, CheckSquare, Square, Users, File, FolderOpen, Pencil, Check, X,
 } from 'lucide-react'
 import type { Project, Task, Participant, ProjectFile } from '@/types'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_TYPES = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
@@ -38,13 +39,31 @@ function DeadlineChip({ deadline }: { deadline: string }) {
   const date = parseLocalDate(deadline)
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const daysLeft = differenceInDays(date, today)
-  if (isPast(date) && !isToday(date))
-    return <span className="text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full flex items-center gap-1"><AlertCircle size={10} /> Überfällig</span>
-  if (daysLeft <= 2)
-    return <span className="text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full flex items-center gap-1"><AlertCircle size={10} /> {daysLeft === 0 ? 'Heute' : `${daysLeft}d`}</span>
-  if (daysLeft <= 6)
-    return <span className="text-xs font-medium text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full flex items-center gap-1"><Clock size={10} /> {daysLeft}d</span>
-  return <span className="text-xs text-gray-500">{format(date, 'd. MMM', { locale: de })}</span>
+  const dateLabel = format(date, 'd. MMM yyyy', { locale: de })
+
+  if (daysLeft > 6)
+    return <span className="text-xs text-gray-500">{format(date, 'd. MMM', { locale: de })}</span>
+
+  const chipClass = (isPast(date) && !isToday(date)) || daysLeft <= 2
+    ? 'text-red-700 bg-red-100'
+    : 'text-yellow-700 bg-yellow-100'
+
+  const label = (isPast(date) && !isToday(date))
+    ? 'Überfällig'
+    : daysLeft === 0 ? 'Heute' : `${daysLeft}d`
+
+  const Icon = (isPast(date) && !isToday(date)) || daysLeft <= 2 ? AlertCircle : Clock
+
+  return (
+    <span className="relative group inline-flex">
+      <span className={`cursor-default text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 ${chipClass}`}>
+        <Icon size={10} /> {label}
+      </span>
+      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-10">
+        {dateLabel}
+      </span>
+    </span>
+  )
 }
 
 export default function ProjectPage() {
@@ -54,11 +73,16 @@ export default function ProjectPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [participants, setParticipants] = useState<Participant[]>([])
   const [files, setFiles] = useState<ProjectFile[]>([])
+  const [confirmDeleteFileId, setConfirmDeleteFileId] = useState<string | null>(null)
   const [tab, setTab] = useState<'aufgaben' | 'teilnehmer' | 'dateien'>('aufgaben')
 
   // Task form
   const [newTask, setNewTask] = useState({ aufgabe: '', beschreibung: '', verantwortliche: '', deadline: '' })
   const [showTaskForm, setShowTaskForm] = useState(false)
+
+  // Task editing
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [editingTask, setEditingTask] = useState({ aufgabe: '', beschreibung: '', verantwortliche: '', deadline: '' })
 
   // Participant form
   const [newParticipant, setNewParticipant] = useState({ name: '', rolle: '' })
@@ -109,6 +133,34 @@ export default function ProjectPage() {
   async function deleteTask(id: string) {
     await supabase.from('tasks').delete().eq('id', id)
     setTasks(tasks.filter(t => t.id !== id))
+  }
+
+  function startEditTask(task: Task) {
+    setEditingTaskId(task.id)
+    setEditingTask({
+      aufgabe: task.aufgabe,
+      beschreibung: task.beschreibung ?? '',
+      verantwortliche: task.verantwortliche ?? '',
+      deadline: task.deadline ?? '',
+    })
+  }
+
+  async function saveEditTask() {
+    if (!editingTaskId || !editingTask.aufgabe.trim()) return
+    await supabase.from('tasks').update({
+      aufgabe: editingTask.aufgabe.trim(),
+      beschreibung: editingTask.beschreibung.trim() || null,
+      verantwortliche: editingTask.verantwortliche.trim() || null,
+      deadline: editingTask.deadline || null,
+    }).eq('id', editingTaskId)
+    setTasks(tasks.map(t => t.id === editingTaskId ? {
+      ...t,
+      aufgabe: editingTask.aufgabe.trim(),
+      beschreibung: editingTask.beschreibung.trim() || null,
+      verantwortliche: editingTask.verantwortliche.trim() || null,
+      deadline: editingTask.deadline || null,
+    } : t))
+    setEditingTaskId(null)
   }
 
   // Participants
@@ -173,9 +225,9 @@ export default function ProjectPage() {
   }
 
   async function deleteFile(id: string, filePath: string) {
-    if (!confirm('Datei wirklich löschen?')) return
     await supabase.storage.from('project-files').remove([filePath])
     await supabase.from('project_files').delete().eq('id', id)
+    setConfirmDeleteFileId(null)
     loadAll()
   }
 
@@ -185,6 +237,16 @@ export default function ProjectPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
+      {confirmDeleteFileId && (() => {
+        const file = files.find(f => f.id === confirmDeleteFileId)
+        return file ? (
+          <ConfirmDialog
+            message={`"${file.file_name}" wird unwiderruflich gelöscht.`}
+            onConfirm={() => deleteFile(file.id, file.file_path)}
+            onCancel={() => setConfirmDeleteFileId(null)}
+          />
+        ) : null
+      })()}
       <div className="flex items-center gap-3 mb-6">
         <Link href="/projekte" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
           <ArrowLeft size={18} />
@@ -303,33 +365,64 @@ export default function ProjectPage() {
                     if (!b.deadline) return -1
                     return a.deadline.localeCompare(b.deadline)
                   }).map(task => (
-                    <tr key={task.id} className={`hover:bg-gray-50 ${task.erledigt ? 'opacity-50' : ''}`}>
-                      <td className="px-4 py-3">
-                        <button onClick={() => toggleTask(task.id, task.erledigt)}>
-                          {task.erledigt
-                            ? <CheckSquare size={18} className="text-blue-600" />
-                            : <Square size={18} className="text-gray-400" />
-                          }
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
-                        <span className={task.erledigt ? 'line-through' : ''}>{task.aufgabe}</span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{task.beschreibung || '—'}</td>
-                      <td className="px-4 py-3 text-gray-500 hidden md:table-cell">{task.verantwortliche || '—'}</td>
-                      <td className="px-4 py-3">
-                        {task.deadline && !task.erledigt
-                          ? <DeadlineChip deadline={task.deadline} />
-                          : task.deadline
-                          ? <span className="text-xs text-gray-400">{format(parseLocalDate(task.deadline), 'd. MMM', { locale: de })}</span>
-                          : <span className="text-gray-300">—</span>
-                        }
-                      </td>
-                      <td className="px-4 py-3">
-                        <button onClick={() => deleteTask(task.id)} className="p-1 text-gray-300 hover:text-red-500">
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
+                    <tr key={task.id} id={`task-${task.id}`} className={`hover:bg-gray-50 scroll-mt-4 target:bg-blue-50 transition-colors ${task.erledigt ? 'opacity-50' : ''}`}>
+                      {editingTaskId === task.id ? (
+                        <>
+                          <td className="px-4 py-2"></td>
+                          <td className="px-2 py-2">
+                            <input autoFocus value={editingTask.aufgabe} onChange={e => setEditingTask({ ...editingTask, aufgabe: e.target.value })}
+                              className="w-full px-2 py-1 border border-blue-400 rounded text-sm focus:outline-none" />
+                          </td>
+                          <td className="px-2 py-2 hidden sm:table-cell">
+                            <input value={editingTask.beschreibung} onChange={e => setEditingTask({ ...editingTask, beschreibung: e.target.value })}
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none" placeholder="Beschreibung" />
+                          </td>
+                          <td className="px-2 py-2 hidden md:table-cell">
+                            <input value={editingTask.verantwortliche} onChange={e => setEditingTask({ ...editingTask, verantwortliche: e.target.value })}
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none" placeholder="Verantwortliche*r" />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input type="date" value={editingTask.deadline} onChange={e => setEditingTask({ ...editingTask, deadline: e.target.value })}
+                              className="px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none" />
+                          </td>
+                          <td className="px-2 py-2">
+                            <div className="flex gap-1">
+                              <button onClick={saveEditTask} className="p-1 text-green-600 hover:text-green-700"><Check size={15} /></button>
+                              <button onClick={() => setEditingTaskId(null)} className="p-1 text-gray-400 hover:text-gray-600"><X size={15} /></button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-4 py-3">
+                            <button onClick={() => toggleTask(task.id, task.erledigt)}>
+                              {task.erledigt
+                                ? <CheckSquare size={18} className="text-blue-600" />
+                                : <Square size={18} className="text-gray-400" />
+                              }
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 font-medium text-gray-900">
+                            <span className={task.erledigt ? 'line-through' : ''}>{task.aufgabe}</span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{task.beschreibung || '—'}</td>
+                          <td className="px-4 py-3 text-gray-500 hidden md:table-cell">{task.verantwortliche || '—'}</td>
+                          <td className="px-4 py-3">
+                            {task.deadline && !task.erledigt
+                              ? <DeadlineChip deadline={task.deadline} />
+                              : task.deadline
+                              ? <span className="text-xs text-gray-400">{format(parseLocalDate(task.deadline), 'd. MMM', { locale: de })}</span>
+                              : <span className="text-gray-300">—</span>
+                            }
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-1">
+                              <button onClick={() => startEditTask(task)} className="p-1 text-gray-300 hover:text-blue-500"><Pencil size={14} /></button>
+                              <button onClick={() => deleteTask(task.id)} className="p-1 text-gray-300 hover:text-red-500"><Trash2 size={14} /></button>
+                            </div>
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -386,7 +479,7 @@ export default function ProjectPage() {
             </div>
           ) : (
             <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-              <table className="w-full text-sm min-w-max">
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
                     {cols.map(col => (
@@ -416,7 +509,7 @@ export default function ProjectPage() {
                               type="text"
                               value={(p[col as keyof Participant] as string) ?? ''}
                               onChange={e => updateParticipant(p.id, col, e.target.value)}
-                              className="min-w-[60px] px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
+                              className="w-full px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
                               placeholder="—"
                             />
                           )}
@@ -482,7 +575,7 @@ export default function ProjectPage() {
                     <Download size={15} />
                   </button>
                   <button
-                    onClick={() => deleteFile(file.id, file.file_path)}
+                    onClick={() => setConfirmDeleteFileId(file.id)}
                     className="p-1.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100"
                   >
                     <Trash2 size={15} />

@@ -7,6 +7,7 @@ import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { Plus, FileText, Trash2, Upload, Calendar, File } from 'lucide-react'
 import type { Document, Protocol } from '@/types'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_TYPES = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
@@ -22,6 +23,7 @@ export default function AllgemeineSVArbeitPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<{ type: 'doc', id: string } | { type: 'protocol', id: string, filePath: string } | null>(null)
   const supabase = createClient()
 
   async function loadData() {
@@ -50,8 +52,8 @@ export default function AllgemeineSVArbeitPage() {
   }
 
   async function deleteDocument(id: string) {
-    if (!confirm('Dokument wirklich löschen?')) return
     await supabase.from('documents').delete().eq('id', id)
+    setConfirmDelete(null)
     loadData()
   }
 
@@ -95,9 +97,9 @@ export default function AllgemeineSVArbeitPage() {
   }
 
   async function deleteProtocol(id: string, filePath: string) {
-    if (!confirm('Protokoll wirklich löschen?')) return
     await supabase.storage.from('protocols').remove([filePath])
     await supabase.from('protocols').delete().eq('id', id)
+    setConfirmDelete(null)
     loadData()
   }
 
@@ -125,17 +127,24 @@ export default function AllgemeineSVArbeitPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
+      {confirmDelete && (
+        <ConfirmDialog
+          message={confirmDelete.type === 'doc' ? 'Das Textfeld wird unwiderruflich gelöscht.' : 'Das Protokoll und die Datei werden unwiderruflich gelöscht.'}
+          onConfirm={() => confirmDelete.type === 'doc' ? deleteDocument(confirmDelete.id) : deleteProtocol(confirmDelete.id, confirmDelete.filePath)}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
       <h1 className="text-2xl font-semibold text-gray-900 mb-6">Allgemeine SV-Arbeit</h1>
 
-      {/* Dokumente */}
+      {/* Textfelder */}
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-800">Dokumente</h2>
+          <h2 className="text-lg font-semibold text-gray-800">Textfelder</h2>
           <button
             onClick={() => setShowNewDoc(!showNewDoc)}
             className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
           >
-            <Plus size={16} /> Neues Dokument
+            <Plus size={16} /> Neues Textfeld
           </button>
         </div>
 
@@ -146,7 +155,7 @@ export default function AllgemeineSVArbeitPage() {
               value={newDocTitle}
               onChange={e => setNewDocTitle(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && createDocument()}
-              placeholder="Titel des Dokuments"
+              placeholder="Titel des Textfelds"
               className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               autoFocus
             />
@@ -168,7 +177,7 @@ export default function AllgemeineSVArbeitPage() {
         {documents.length === 0 ? (
           <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl">
             <FileText size={32} className="mx-auto text-gray-300 mb-2" />
-            <p className="text-sm text-gray-500">Noch keine Dokumente</p>
+            <p className="text-sm text-gray-500">Noch keine Textfelder</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -188,7 +197,7 @@ export default function AllgemeineSVArbeitPage() {
                   </p>
                 </Link>
                 <button
-                  onClick={() => deleteDocument(doc.id)}
+                  onClick={() => setConfirmDelete({ type: 'doc', id: doc.id })}
                   className="p-1.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <Trash2 size={15} />
@@ -292,7 +301,7 @@ export default function AllgemeineSVArbeitPage() {
                           Download
                         </button>
                         <button
-                          onClick={() => deleteProtocol(protocol.id, protocol.file_path)}
+                          onClick={() => setConfirmDelete({ type: 'protocol', id: protocol.id, filePath: protocol.file_path })}
                           className="p-1.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           <Trash2 size={15} />
