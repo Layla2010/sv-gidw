@@ -14,8 +14,8 @@ export default function SetPasswordPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    // Supabase puts the invite token in the URL hash.
-    // The client library picks it up automatically on load and creates a session.
+    // Supabase liest den Invite-Token aus dem URL-Hash und erstellt automatisch
+    // eine neue Session — auch wenn bereits jemand eingeloggt ist.
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setReady(true)

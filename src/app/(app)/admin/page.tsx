@@ -41,12 +41,17 @@ export default function AdminPage() {
     setInviteSuccess('')
 
     const { data: { session } } = await supabase.auth.getSession()
-    const res = await supabase.functions.invoke('invite-user', {
-      body: { email: inviteEmail.trim(), full_name: inviteName.trim(), role: inviteRole },
+    const res = await fetch('/api/invite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token ?? ''}`,
+      },
+      body: JSON.stringify({ email: inviteEmail.trim(), full_name: inviteName.trim(), role: inviteRole }),
     })
-
-    if (res.error || res.data?.error) {
-      setInviteError(`Einladung konnte nicht gesendet werden: ${res.error?.message ?? res.data?.error}`)
+    const json = await res.json()
+    if (!res.ok || json.error) {
+      setInviteError(`Einladung konnte nicht gesendet werden: ${json.error ?? 'Unbekannter Fehler'}`)
       setLoading(false)
       return
     }
