@@ -26,11 +26,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
           >
             <Menu size={20} />
           </button>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xs">SV</span>
-            </div>
-            <span className="font-semibold text-gray-900 text-sm">SV-App</span>
+          <div className="flex items-center">
+            <img src="/sv-logo.png" alt="SV Logo" className="h-8 object-contain" />
           </div>
         </div>
 

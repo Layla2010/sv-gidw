@@ -69,12 +69,10 @@ export default function Sidebar({ userRole, userName, isOpen, onClose }: Sidebar
         `}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 h-16 border-b border-gray-200">
+        <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">SV</span>
-            </div>
-            <span className="font-semibold text-gray-900">SV-App</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/sv-logo.png" alt="SV Logo" className="h-16 w-auto object-contain" />
           </div>
           <button
             onClick={onClose}
