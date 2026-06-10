@@ -10,25 +10,47 @@ export default function SetPasswordPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [ready, setReady] = useState(false)
+  const [email, setEmail] = useState('')
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
-    // Supabase liest den Invite-Token aus dem URL-Hash und erstellt automatisch
-    // eine neue Session — auch wenn bereits jemand eingeloggt ist.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setReady(true)
+    async function init() {
+      // Token explizit aus dem URL-Hash lesen und Session setzen
+      // Das überschreibt eine bestehende Session zuverlässig
+      const hash = window.location.hash.substring(1)
+      const params = new URLSearchParams(hash)
+      const accessToken = params.get('access_token')
+      const refreshToken = params.get('refresh_token')
+
+      if (accessToken && refreshToken) {
+        const { data: { session }, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        })
+        if (session) {
+          setEmail(session.user.email ?? '')
+          setReady(true)
+        } else {
+          setError('Ungültiger oder abgelaufener Einladungslink.' + (error ? ` (${error.message})` : ''))
+        }
       } else {
-        setError('Ungültiger oder abgelaufener Einladungslink.')
+        // Kein Token in der URL — normaler Login-Flow
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          setReady(true)
+        } else {
+          setError('Kein Einladungslink gefunden. Bitte nutze den Link aus der E-Mail.')
+        }
       }
-    })
+    }
+    init()
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (password.length < 8) {
-      setError('Passwort muss mindestens 8 Zeichen lang sein.')
+    if (password.length < 5) {
+      setError('Passwort muss mindestens 5 Zeichen lang sein.')
       return
     }
     if (password !== confirm) {
@@ -56,6 +78,11 @@ export default function SetPasswordPage() {
             </div>
             <h1 className="text-xl font-semibold text-gray-900">Passwort festlegen</h1>
             <p className="text-sm text-gray-500 mt-1">Willkommen in der SV-App!</p>
+            {email && (
+              <p className="text-xs text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg mt-2">
+                Account: <strong>{email}</strong>
+              </p>
+            )}
           </div>
 
           {!ready && !error && (
@@ -77,9 +104,9 @@ export default function SetPasswordPage() {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
-                  minLength={8}
+                  minLength={5}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Mindestens 8 Zeichen"
+                  placeholder="Mindestens 5 Zeichen"
                   autoFocus
                 />
               </div>

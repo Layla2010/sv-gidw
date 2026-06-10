@@ -17,7 +17,9 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    // @gidw-online.de automatisch anhängen falls kein @ vorhanden
+    const loginEmail = email.includes('@') ? email : `${email.toLowerCase().replace(/\s+/g, '.')}@gidw-online.de`
+    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password })
 
     if (error) {
       setError('E-Mail oder Passwort falsch.')
@@ -43,15 +45,17 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                E-Mail
+                Anmeldename
               </label>
+              <p className="text-xs text-gray-400 mb-1">z.B. layla.bartholomaei</p>
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="name@schule.de"
+                placeholder="vorname.nachname"
+                autoFocus
               />
             </div>
 

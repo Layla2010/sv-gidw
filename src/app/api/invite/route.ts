@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Server-Konfiguration fehlt.' }, { status: 500 })
     }
 
-    // Eingeloggten User prüfen (anon key + JWT aus Header)
+    // Eingeloggten User prüfen
     const authHeader = req.headers.get('authorization') ?? ''
     const userClient = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
       global: { headers: { Authorization: authHeader } }
@@ -20,26 +20,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Nicht eingeloggt.' }, { status: 401 })
     }
 
-    // Rollen-Check via Service Role (umgeht RLS)
+    // Rollen-Check
     const adminClient = createClient(supabaseUrl, serviceRoleKey)
     const { data: profile } = await adminClient.from('profiles').select('role').eq('id', user.id).single()
     if (profile?.role !== 'admin') {
       return NextResponse.json({ error: 'Keine Admin-Berechtigung.' }, { status: 403 })
     }
 
-    // Einladung versenden
-    const { email, full_name, role } = await req.json()
-    if (!email) {
-      return NextResponse.json({ error: 'E-Mail ist erforderlich.' }, { status: 400 })
+    const { email, full_name, role, temp_password } = await req.json()
+    if (!email || !temp_password) {
+      return NextResponse.json({ error: 'E-Mail und Passwort sind erforderlich.' }, { status: 400 })
     }
 
-    const { data, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-      data: { full_name: full_name ?? '' },
+    // Account direkt erstellen (kein E-Mail-Versand)
+    const { data, error: createError } = await adminClient.auth.admin.createUser({
+      email,
+      password: temp_password,
+      email_confirm: true,
+      user_metadata: { full_name: full_name ?? '' },
     })
-    if (inviteError) {
-      return NextResponse.json({ error: inviteError.message }, { status: 400 })
+
+    if (createError) {
+      return NextResponse.json({ error: createError.message }, { status: 400 })
     }
 
+    // Rolle setzen falls Admin
     if (role === 'admin' && data.user) {
       await adminClient.from('profiles').update({ role: 'admin' }).eq('id', data.user.id)
     }

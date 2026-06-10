@@ -15,6 +15,7 @@ export default function AdminPage() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
   const [inviteRole, setInviteRole] = useState<'admin' | 'mitglied'>('mitglied')
+  const [inviteTempPassword, setInviteTempPassword] = useState('')
   const [inviteError, setInviteError] = useState('')
   const [inviteSuccess, setInviteSuccess] = useState('')
   const [loading, setLoading] = useState(false)
@@ -35,10 +36,14 @@ export default function AdminPage() {
   useEffect(() => { loadData() }, [])
 
   async function inviteUser() {
-    if (!inviteEmail.trim()) { setInviteError('E-Mail ist erforderlich.'); return }
+    if (!inviteEmail.trim()) { setInviteError('Anmeldename ist erforderlich.'); return }
+    if (inviteTempPassword.length < 5) { setInviteError('Temporäres Passwort muss mindestens 5 Zeichen haben.'); return }
     setLoading(true)
     setInviteError('')
     setInviteSuccess('')
+
+    const username = inviteEmail.trim().toLowerCase().replace(/\s+/g, '.')
+    const email = username.includes('@') ? username : `${username}@gidw-online.de`
 
     const { data: { session } } = await supabase.auth.getSession()
     const res = await fetch('/api/invite', {
@@ -47,19 +52,20 @@ export default function AdminPage() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session?.access_token ?? ''}`,
       },
-      body: JSON.stringify({ email: inviteEmail.trim(), full_name: inviteName.trim(), role: inviteRole }),
+      body: JSON.stringify({ email, full_name: inviteName.trim(), role: inviteRole, temp_password: inviteTempPassword }),
     })
     const json = await res.json()
     if (!res.ok || json.error) {
-      setInviteError(`Einladung konnte nicht gesendet werden: ${json.error ?? 'Unbekannter Fehler'}`)
+      setInviteError(`Account konnte nicht erstellt werden: ${json.error ?? 'Unbekannter Fehler'}`)
       setLoading(false)
       return
     }
 
-    setInviteSuccess(`Einladung an ${inviteEmail.trim()} gesendet.`)
+    setInviteSuccess(`Account für „${inviteName.trim() || inviteEmail.trim()}" erstellt. Login: ${inviteEmail.trim().toLowerCase().replace(/\s+/g, '.')}@gidw-online.de`)
     setInviteEmail('')
     setInviteName('')
     setInviteRole('mitglied')
+    setInviteTempPassword('')
     setLoading(false)
     loadData()
   }
@@ -102,31 +108,51 @@ export default function AdminPage() {
           onClick={() => setShowInvite(!showInvite)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
         >
-          <UserPlus size={16} /> Mitglied einladen
+          <UserPlus size={16} /> Mitglied hinzufügen
         </button>
       </div>
 
       {showInvite && (
         <div className="mb-6 p-5 bg-white border border-gray-200 rounded-xl space-y-4">
-          <h2 className="font-semibold text-gray-900">Neues Mitglied einladen</h2>
+          <h2 className="font-semibold text-gray-900">Neues Mitglied hinzufügen</h2>
+          <p className="text-sm text-gray-500">Der Account wird direkt erstellt. Teile E-Mail und temporäres Passwort mit der Person — sie kann es danach im Profil ändern.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">E-Mail *</label>
-              <input
-                type="email"
-                value={inviteEmail}
-                onChange={e => setInviteEmail(e.target.value)}
-                placeholder="name@schule.de"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Anmeldename *</label>
+              <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
+                <input
+                  type="text"
+                  value={inviteEmail}
+                  onChange={e => setInviteEmail(e.target.value)}
+                  placeholder="layla.nachname"
+                  className="flex-1 px-3 py-2 text-sm focus:outline-none"
+                  autoFocus
+                />
+                {!inviteEmail.includes('@') && (
+                  <span className="px-2 text-sm text-gray-400 bg-gray-50 border-l border-gray-300 py-2">@gidw-online.de</span>
+                )}
+              </div>
+              {!inviteEmail.includes('@') && inviteEmail && (
+                <p className="text-xs text-gray-400 mt-1">→ {inviteEmail.toLowerCase().replace(/\s+/g, '.')}@gidw-online.de</p>
+              )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Benutzername</label>
               <input
                 type="text"
                 value={inviteName}
                 onChange={e => setInviteName(e.target.value)}
                 placeholder="Vor- und Nachname"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Temporäres Passwort *</label>
+              <input
+                type="text"
+                value={inviteTempPassword}
+                onChange={e => setInviteTempPassword(e.target.value)}
+                placeholder="Mindestens 5 Zeichen"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -150,7 +176,7 @@ export default function AdminPage() {
               disabled={loading}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
             >
-              <Mail size={14} /> {loading ? 'Senden…' : 'Einladung senden'}
+              <UserPlus size={14} /> {loading ? 'Erstellen…' : 'Account erstellen'}
             </button>
             <button onClick={() => setShowInvite(false)} className="px-3 py-2 text-gray-600 text-sm">Abbrechen</button>
           </div>
@@ -213,10 +239,6 @@ export default function AdminPage() {
         </table>
       </div>
 
-      <p className="text-xs text-gray-400 mt-4">
-        Hinweis: Zum Einladen neuer Mitglieder muss die Supabase-Admin-API aktiviert sein,
-        oder nutze direkt das Supabase Dashboard unter Authentication → Users.
-      </p>
     </div>
   )
 }

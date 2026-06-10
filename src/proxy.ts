@@ -25,13 +25,17 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const isAuthPage = request.nextUrl.pathname.startsWith('/login')
+  const isAuthPage =
+    request.nextUrl.pathname.startsWith('/login') ||
+    request.nextUrl.pathname.startsWith('/set-password')
 
   if (!user && !isAuthPage) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (user && isAuthPage) {
+  // Bei /set-password nie weiterleiten — der Invite-Token muss verarbeitet werden
+  const isSetPassword = request.nextUrl.pathname.startsWith('/set-password')
+  if (user && isAuthPage && !isSetPassword) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
