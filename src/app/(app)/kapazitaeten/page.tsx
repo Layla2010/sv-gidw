@@ -49,10 +49,10 @@ export default function KapazitaetenPage() {
   const canEdit = (profileId: string) =>
     currentUser?.role === 'admin' || currentUser?.id === profileId
 
-  if (loading) return <div className="p-6 text-gray-500">Laden…</div>
+  if (loading) return <div className="p-4 md:p-6 text-gray-500">Laden…</div>
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div className="p-4 md:p-6 max-w-2xl mx-auto">
       <h1 className="text-2xl font-semibold text-gray-900 mb-2">Kapazitäten</h1>
       <p className="text-sm text-gray-500 mb-6">Wer hat gerade Zeit für neue Aufgaben?</p>
 

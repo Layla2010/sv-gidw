@@ -78,14 +78,14 @@ export default function AdminPage() {
 
   if (currentUser?.role !== 'admin') {
     return (
-      <div className="p-6 text-center">
+      <div className="p-4 md:p-6 text-center">
         <p className="text-gray-500">Du hast keine Berechtigung für diesen Bereich.</p>
       </div>
     )
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6 max-w-4xl mx-auto">
       {confirmDeleteId && (() => {
         const user = profiles.find(p => p.id === confirmDeleteId)
         return user ? (

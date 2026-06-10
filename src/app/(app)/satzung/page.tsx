@@ -69,7 +69,7 @@ export default function SatzungPage() {
   const isAdmin = profile?.role === 'admin'
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto">
       {confirmDelete && (
         <ConfirmDialog
           message="Die Satzung wird unwiderruflich gelöscht."

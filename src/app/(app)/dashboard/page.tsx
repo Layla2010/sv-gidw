@@ -41,7 +41,7 @@ function Widget({ title, linkHref, linkLabel, children }: {
   children: React.ReactNode
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col min-h-0 h-full">
+    <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col min-h-0 lg:h-full">
       <div className="flex items-center justify-between mb-3 flex-shrink-0">
         <h2 className="font-semibold text-gray-900 text-sm">{title}</h2>
         {linkHref && <Link href={linkHref} className="text-xs text-blue-600 hover:underline">{linkLabel}</Link>}
@@ -77,11 +77,11 @@ export default function DashboardPage() {
   }, [])
 
   return (
-    <div className="h-full flex flex-col p-4 gap-4">
+    <div className="flex flex-col p-3 md:p-4 gap-3 md:gap-4 lg:h-full">
       <h1 className="text-xl font-semibold text-gray-900 flex-shrink-0">Dashboard</h1>
 
       {/* Desktop: 2 Zeilen. Mobile: gestapelt */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-rows-[3fr_2fr] lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-3 md:gap-4 lg:flex-1 lg:min-h-0 lg:grid-rows-[3fr_2fr] lg:grid-cols-3 lg:overflow-hidden">
 
         {/* Offene Aufgaben */}
         <div className="lg:col-span-2 lg:row-span-1 min-h-0">

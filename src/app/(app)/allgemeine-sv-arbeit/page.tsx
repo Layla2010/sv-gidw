@@ -126,7 +126,7 @@ export default function AllgemeineSVArbeitPage() {
   }, {})
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6 max-w-4xl mx-auto">
       {confirmDelete && (
         <ConfirmDialog
           message={confirmDelete.type === 'doc' ? 'Das Textfeld wird unwiderruflich gelöscht.' : 'Das Protokoll und die Datei werden unwiderruflich gelöscht.'}

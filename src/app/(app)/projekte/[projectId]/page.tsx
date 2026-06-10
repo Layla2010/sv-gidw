@@ -236,7 +236,7 @@ export default function ProjectPage() {
   const cols = project.participant_template ? TEMPLATE_COLS[project.participant_template] : TEMPLATE_COLS.meeting
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-4 md:p-6 max-w-6xl mx-auto">
       {confirmDeleteFileId && (() => {
         const file = files.find(f => f.id === confirmDeleteFileId)
         return file ? (
@@ -258,20 +258,21 @@ export default function ProjectPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl overflow-x-auto max-w-full">
         {[
-          { key: 'aufgaben', label: `Aufgaben (${tasks.filter(t => !t.erledigt).length})` },
-          ...(project.has_participant_list ? [{ key: 'teilnehmer', label: `Teilnehmer*innen (${participants.length})` }] : []),
-          { key: 'dateien', label: `Dateien (${files.length})` },
-        ].map(({ key, label }) => (
+          { key: 'aufgaben', label: `Aufgaben (${tasks.filter(t => !t.erledigt).length})`, short: `Aufgaben` },
+          ...(project.has_participant_list ? [{ key: 'teilnehmer', label: `Teilnehmer*innen (${participants.length})`, short: `Personen` }] : []),
+          { key: 'dateien', label: `Dateien (${files.length})`, short: `Dateien` },
+        ].map(({ key, label, short }) => (
           <button
             key={key}
             onClick={() => setTab(key as typeof tab)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
               tab === key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            {label}
+            <span className="hidden sm:inline">{label}</span>
+            <span className="sm:hidden">{short}</span>
           </button>
         ))}
       </div>
@@ -345,8 +346,8 @@ export default function ProjectPage() {
               <p className="text-sm text-gray-500">Noch keine Aufgaben</p>
             </div>
           ) : (
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+              <table className="w-full text-sm min-w-[400px]">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
                     <th className="text-left px-4 py-3 font-medium text-gray-600 w-8"></th>
@@ -534,7 +535,7 @@ export default function ProjectPage() {
         <div>
           <div className="mb-4 p-4 bg-white border border-gray-200 rounded-xl">
             <label className="block text-sm font-medium text-gray-700 mb-2">Datei hochladen (PDF oder Word, max. 10 MB)</label>
-            <div className="flex gap-2 items-center">
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
               <input
                 type="file"
                 accept=".pdf,.docx"
@@ -544,7 +545,7 @@ export default function ProjectPage() {
               <button
                 onClick={uploadProjectFile}
                 disabled={!uploadFile || uploading}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
               >
                 <Upload size={14} /> {uploading ? 'Hochladen…' : 'Hochladen'}
               </button>

@@ -94,7 +94,7 @@ export default function SuchePage() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-4 md:p-6 max-w-3xl mx-auto">
       <h1 className="text-2xl font-semibold text-gray-900 mb-6">Suche</h1>
 
       <div className="relative mb-6">
