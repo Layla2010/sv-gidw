@@ -5,6 +5,7 @@ export interface Profile {
   email: string
   full_name: string
   role: UserRole
+  kapazitaet?: 'verfuegbar' | 'eingeschraenkt' | 'ausgelastet'
   created_at: string
 }
 

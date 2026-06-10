@@ -14,6 +14,7 @@ import {
   LogOut,
   ChevronRight,
   X,
+  Users,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -29,6 +30,7 @@ const navItems = [
   { href: '/projekte', label: 'Projekte', icon: FolderOpen },
   { href: '/satzung', label: 'SV-Satzung', icon: BookOpen },
   { href: '/chronik', label: 'SV-Chronik', icon: BookMarked },
+  { href: '/kapazitaeten', label: 'Kapazitäten', icon: Users },
   { href: '/suche', label: 'Suche', icon: Search },
 ]
 
