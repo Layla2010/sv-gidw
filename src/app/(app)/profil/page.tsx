@@ -53,7 +53,7 @@ export default function ProfilPage() {
     e.preventDefault()
     setPasswordError('')
     setPasswordSuccess(false)
-    if (newPassword.length < 8) { setPasswordError('Passwort muss mindestens 8 Zeichen lang sein.'); return }
+    if (newPassword.length < 5) { setPasswordError('Passwort muss mindestens 5 Zeichen lang sein.'); return }
     if (newPassword !== confirmPassword) { setPasswordError('Passwörter stimmen nicht überein.'); return }
     setSaving(true)
     const { error } = await supabase.auth.updateUser({ password: newPassword })
@@ -112,7 +112,7 @@ export default function ProfilPage() {
             value={newPassword}
             onChange={e => setNewPassword(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Mindestens 8 Zeichen"
+            placeholder="Mindestens 5 Zeichen"
           />
         </div>
         <div>
