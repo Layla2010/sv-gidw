@@ -18,13 +18,13 @@ const ALLOWED_TYPES = ['application/pdf', 'application/vnd.openxmlformats-office
 
 // Columns shown per template
 const TEMPLATE_COLS: Record<string, (keyof Participant)[]> = {
-  overnight: ['name', 'rolle', 'anwesend', 'gruppenname', 'raum', 'ueber_nacht', 'buffet', 'gegangen', 'sonstiges'],
-  daytrip:   ['name', 'rolle', 'anwesend', 'gruppenname', 'gegangen', 'sonstiges'],
-  meeting:   ['name', 'rolle', 'anwesend', 'sonstiges'],
+  overnight: ['name', 'rolle', 'klasse', 'anwesend', 'gruppenname', 'raum', 'ueber_nacht', 'buffet', 'gegangen'],
+  daytrip:   ['name', 'rolle', 'klasse', 'anwesend', 'gruppenname', 'gegangen'],
+  meeting:   ['name', 'rolle', 'klasse', 'anwesend'],
 }
 
 const COL_LABELS: Record<string, string> = {
-  name: 'Name', rolle: 'Rolle', anwesend: 'Anwesend', gruppenname: 'Gruppe',
+  name: 'Name', rolle: 'Rolle', klasse: 'Klasse', anwesend: 'Anwesend', gruppenname: 'Gruppe',
   raum: 'Raum', ueber_nacht: 'Ü.Nacht', buffet: 'Buffet', gegangen: 'Gegangen', sonstiges: 'Sonstiges',
 }
 
@@ -84,6 +84,11 @@ export default function ProjectPage() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState({ aufgabe: '', beschreibung: '', verantwortliche: '', deadline: '' })
 
+  // Custom columns
+  const [extraColumns, setExtraColumns] = useState<string[]>([])
+  const [newColName, setNewColName] = useState('')
+  const [showAddCol, setShowAddCol] = useState(false)
+
   // Participant form
   const [newParticipant, setNewParticipant] = useState({ name: '', rolle: '' })
   const [showParticipantForm, setShowParticipantForm] = useState(false)
@@ -103,9 +108,32 @@ export default function ProjectPage() {
       supabase.from('project_files').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
     ])
     setProject(projRes.data)
+    setExtraColumns(projRes.data?.extra_columns ?? [])
     setTasks(tasksRes.data ?? [])
     setParticipants(partRes.data ?? [])
     setFiles(filesRes.data ?? [])
+  }
+
+  async function addExtraColumn() {
+    const name = newColName.trim()
+    if (!name) return
+    const updated = [...extraColumns, name]
+    await supabase.from('projects').update({ extra_columns: updated }).eq('id', projectId)
+    setExtraColumns(updated)
+    setNewColName('')
+    setShowAddCol(false)
+  }
+
+  async function removeExtraColumn(col: string) {
+    const updated = extraColumns.filter(c => c !== col)
+    await supabase.from('projects').update({ extra_columns: updated }).eq('id', projectId)
+    setExtraColumns(updated)
+  }
+
+  async function updateExtraField(participantId: string, col: string, value: string, currentExtra: Record<string, string> | null) {
+    const updated = { ...(currentExtra ?? {}), [col]: value }
+    await supabase.from('participants').update({ extra: updated }).eq('id', participantId)
+    setParticipants(participants.map(p => p.id === participantId ? { ...p, extra: updated } : p))
   }
 
   useEffect(() => { loadAll() }, [projectId])
@@ -488,7 +516,32 @@ export default function ProjectPage() {
                         {COL_LABELS[col]}
                       </th>
                     ))}
-                    <th className="w-8"></th>
+                    {extraColumns.map(col => (
+                      <th key={col} className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap text-xs group">
+                        <span className="flex items-center gap-1">
+                          {col}
+                          <button onClick={() => removeExtraColumn(col)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500">
+                            <X size={10} />
+                          </button>
+                        </span>
+                      </th>
+                    ))}
+                    <th className="px-2 py-2 w-8">
+                      {showAddCol ? (
+                        <div className="flex items-center gap-1">
+                          <input autoFocus value={newColName} onChange={e => setNewColName(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') addExtraColumn(); if (e.key === 'Escape') setShowAddCol(false) }}
+                            className="w-20 px-1 py-0.5 border border-blue-400 rounded text-xs focus:outline-none"
+                            placeholder="Name" />
+                          <button onClick={addExtraColumn} className="text-green-600"><Check size={12} /></button>
+                          <button onClick={() => setShowAddCol(false)} className="text-gray-400"><X size={12} /></button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setShowAddCol(true)} className="p-1 text-gray-400 hover:text-blue-500 rounded">
+                          <Plus size={13} />
+                        </button>
+                      )}
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -514,6 +567,17 @@ export default function ProjectPage() {
                               placeholder="—"
                             />
                           )}
+                        </td>
+                      ))}
+                      {extraColumns.map(col => (
+                        <td key={col} className="px-1 py-1">
+                          <input
+                            type="text"
+                            value={(p.extra ?? {})[col] ?? ''}
+                            onChange={e => updateExtraField(p.id, col, e.target.value, p.extra)}
+                            className="w-full px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
+                            placeholder="—"
+                          />
                         </td>
                       ))}
                       <td className="px-1 py-1">

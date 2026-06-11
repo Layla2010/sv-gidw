@@ -35,6 +35,7 @@ export interface Project {
   description: string | null
   has_participant_list: boolean
   participant_template: 'overnight' | 'daytrip' | 'meeting' | null
+  extra_columns: string[]
   created_by: string
   created_at: string
   updated_at: string
@@ -56,6 +57,7 @@ export interface Participant {
   project_id: string
   name: string
   rolle: string | null
+  klasse: string | null
   anwesend: boolean
   gruppenname: string | null
   raum: string | null
@@ -63,6 +65,7 @@ export interface Participant {
   buffet: boolean | null
   gegangen: boolean
   sonstiges: string | null
+  extra: Record<string, string> | null
 }
 
 export interface ProjectFile {

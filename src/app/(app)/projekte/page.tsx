@@ -11,9 +11,9 @@ import type { Project } from '@/types'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
 const TEMPLATES = [
-  { value: 'overnight', label: 'Übernachtungs-Event (z.B. Lesenacht, AVN)' },
-  { value: 'daytrip', label: 'Tagesausflug (z.B. Heideparkfahrt)' },
-  { value: 'meeting', label: 'Versammlung / Treffen' },
+  { value: 'overnight', label: 'Übernachtungs-Event', cols: 'Name, Rolle, Klasse, Anwesend, Gruppe, Raum, Ü.Nacht, Buffet, Gegangen' },
+  { value: 'daytrip', label: 'Tagesausflug', cols: 'Name, Rolle, Klasse, Anwesend, Gruppe, Gegangen' },
+  { value: 'meeting', label: 'Versammlung / Treffen', cols: 'Name, Rolle, Klasse, Anwesend' },
 ]
 
 export default function ProjektePage() {
@@ -117,15 +117,17 @@ export default function ProjektePage() {
           {hasParticipants && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Vorlage</label>
-              <select
-                value={template}
-                onChange={e => setTemplate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
+              <div className="space-y-2">
                 {TEMPLATES.map(t => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
+                  <label key={t.value} className={`flex flex-col gap-0.5 p-3 border rounded-lg cursor-pointer transition-colors ${template === t.value ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <div className="flex items-center gap-2">
+                      <input type="radio" name="template" value={t.value} checked={template === t.value} onChange={() => setTemplate(t.value)} className="text-blue-600" />
+                      <span className="text-sm font-medium text-gray-900">{t.label}</span>
+                    </div>
+                    <span className="text-xs text-gray-400 ml-5">{t.cols}</span>
+                  </label>
                 ))}
-              </select>
+              </div>
             </div>
           )}
           <div className="flex gap-2">
