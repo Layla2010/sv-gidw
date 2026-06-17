@@ -40,7 +40,7 @@ export default function KapazitaetenPage() {
     setLoading(false)
   }
 
-  async function setStatus(id: string, kapazitaet: string) {
+  async function setStatus(id: string, kapazitaet: 'verfuegbar' | 'eingeschraenkt' | 'ausgelastet') {
     await supabase.from('profiles').update({ kapazitaet }).eq('id', id)
     setProfiles(profiles.map(p => p.id === id ? { ...p, kapazitaet } : p))
     if (currentUser?.id === id) setCurrentUser({ ...currentUser, kapazitaet })
@@ -81,7 +81,7 @@ export default function KapazitaetenPage() {
                 {STATI.map(s => (
                   <button
                     key={s.value}
-                    onClick={() => setStatus(profile.id, s.value)}
+                    onClick={() => setStatus(profile.id, s.value as 'verfuegbar' | 'eingeschraenkt' | 'ausgelastet')}
                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all
                       ${(profile.kapazitaet ?? 'verfuegbar') === s.value
                         ? `${s.color} ring-2 ring-offset-1 ring-current`
