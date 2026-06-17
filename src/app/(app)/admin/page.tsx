@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
-import { UserPlus, Shield, User, Trash2, Mail } from 'lucide-react'
+import { UserPlus, Shield, User, Trash2 } from 'lucide-react'
 import type { Profile } from '@/types'
 import ConfirmDialog from '@/components/ConfirmDialog'
 

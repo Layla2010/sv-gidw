@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
-import { Search, FileText, File, FolderOpen } from 'lucide-react'
+import { Search, FileText, File, FolderOpen, Clock, X } from 'lucide-react'
 import Fuse from 'fuse.js'
 
 interface SearchResult {
@@ -16,16 +16,33 @@ interface SearchResult {
   href: string
 }
 
+const RECENT_KEY = 'sv-recent-searches'
+const MAX_RECENT = 8
+
+function getRecent(): string[] {
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]') } catch { return [] }
+}
+
+function saveRecent(query: string) {
+  const prev = getRecent().filter(q => q !== query)
+  localStorage.setItem(RECENT_KEY, JSON.stringify([query, ...prev].slice(0, MAX_RECENT)))
+}
+
+function removeRecent(query: string) {
+  localStorage.setItem(RECENT_KEY, JSON.stringify(getRecent().filter(q => q !== query)))
+}
+
 export default function SuchePage() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
-  const [allItems, setAllItems] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(true)
+  const [recentSearches, setRecentSearches] = useState<string[]>([])
   const fuseRef = useRef<Fuse<SearchResult> | null>(null)
   const supabase = createClient()
 
-  // Alle Daten einmal laden
   useEffect(() => {
+    setRecentSearches(getRecent())
+
     async function loadAll() {
       const [docsRes, protocolsRes, projectsRes, filesRes] = await Promise.all([
         supabase.from('documents').select('id, title, updated_at').not('title', 'eq', '__satzung__'),
@@ -39,7 +56,7 @@ export default function SuchePage() {
           type: 'document' as const,
           id: d.id,
           title: d.title,
-          subtitle: `Dokument · ${format(new Date(d.updated_at), 'd. MMM yyyy', { locale: de })}`,
+          subtitle: `Textfeld · ${format(new Date(d.updated_at), 'd. MMM yyyy', { locale: de })}`,
           href: `/allgemeine-sv-arbeit/${d.id}`,
         })),
         ...(protocolsRes.data ?? []).map(p => ({
@@ -65,10 +82,9 @@ export default function SuchePage() {
         })),
       ]
 
-      setAllItems(items)
       fuseRef.current = new Fuse(items, {
         keys: ['title'],
-        threshold: 0.4, // 0 = exakt, 1 = alles — 0.4 erlaubt kleine Tippfehler
+        threshold: 0.4,
         distance: 100,
         minMatchCharLength: 2,
       })
@@ -77,14 +93,23 @@ export default function SuchePage() {
     loadAll()
   }, [])
 
-  // Live-Suche bei Eingabe
   useEffect(() => {
     const q = query.trim()
     if (!q) { setResults([]); return }
     if (!fuseRef.current) return
-    const found = fuseRef.current.search(q).map(r => r.item)
-    setResults(found)
+    setResults(fuseRef.current.search(q).map(r => r.item))
   }, [query])
+
+  function handleResultClick(q: string) {
+    saveRecent(q)
+    setRecentSearches(getRecent())
+  }
+
+  function deleteRecent(q: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    removeRecent(q)
+    setRecentSearches(getRecent())
+  }
 
   const iconForType = (type: SearchResult['type']) => {
     if (type === 'document') return <FileText size={18} className="text-blue-500" />
@@ -113,6 +138,31 @@ export default function SuchePage() {
         )}
       </div>
 
+      {!query.trim() && recentSearches.length > 0 && (
+        <div className="mb-6">
+          <p className="text-xs font-medium text-gray-500 mb-2">Letzte Suchen</p>
+          <div className="space-y-1">
+            {recentSearches.map(q => (
+              <div key={q} className="flex items-center gap-2 group">
+                <button
+                  onClick={() => setQuery(q)}
+                  className="flex items-center gap-2 flex-1 px-3 py-2 rounded-lg hover:bg-gray-100 text-left"
+                >
+                  <Clock size={14} className="text-gray-400 flex-shrink-0" />
+                  <span className="text-sm text-gray-700">{q}</span>
+                </button>
+                <button
+                  onClick={(e) => deleteRecent(q, e)}
+                  className="p-1 text-gray-300 hover:text-gray-500 opacity-0 group-hover:opacity-100"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {query.trim() && (
         results.length === 0 ? (
           <div className="text-center py-12">
@@ -126,6 +176,7 @@ export default function SuchePage() {
               <Link
                 key={`${result.type}-${result.id}`}
                 href={result.href}
+                onClick={() => handleResultClick(query.trim())}
                 className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-200 hover:bg-blue-50 transition-colors"
               >
                 {iconForType(result.type)}
