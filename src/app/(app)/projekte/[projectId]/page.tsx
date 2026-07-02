@@ -508,7 +508,7 @@ export default function ProjectPage() {
             </div>
           ) : (
             <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="text-sm min-w-max w-full">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
                     {cols.map(col => (
@@ -563,7 +563,8 @@ export default function ProjectPage() {
                               type="text"
                               value={(p[col as keyof Participant] as string) ?? ''}
                               onChange={e => updateParticipant(p.id, col, e.target.value)}
-                              className="w-full px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
+                              size={Math.max(3, String(p[col as keyof Participant] ?? '').length)}
+                              className="px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
                               placeholder="—"
                             />
                           )}
@@ -575,7 +576,8 @@ export default function ProjectPage() {
                             type="text"
                             value={(p.extra ?? {})[col] ?? ''}
                             onChange={e => updateExtraField(p.id, col, e.target.value, p.extra)}
-                            className="w-full px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
+                            size={Math.max(3, ((p.extra ?? {})[col] ?? '').length)}
+                            className="px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
                             placeholder="—"
                           />
                         </td>
