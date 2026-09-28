@@ -157,23 +157,23 @@ export default function ProjektePage() {
       ) : !showNew ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {projects.map(project => (
-            <div key={project.id} className="relative bg-white border border-gray-200 rounded-xl p-5 hover:border-blue-200 transition-colors">
+            <div key={project.id} className="relative bg-white border border-gray-200 rounded-xl p-5 hover:border-blue-200 hover:shadow-md transition-all shadow-sm">
               <Link href={`/projekte/${project.id}`} className="absolute inset-0 rounded-xl" />
               <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 bg-blue-50 border border-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <FolderOpen size={20} className="text-blue-600" />
                 </div>
               </div>
               <h3 className="font-semibold text-gray-900 mb-1">{project.name}</h3>
               {project.description && (
-                <p className="text-sm text-gray-500 line-clamp-2 mb-2">{project.description}</p>
+                <p className="text-sm text-gray-600 line-clamp-2 mb-2">{project.description}</p>
               )}
               <div className="flex items-center gap-3 mt-3">
                 <span className="text-xs text-gray-400">
                   {format(new Date(project.created_at), 'd. MMM yyyy', { locale: de })}
                 </span>
                 {project.has_participant_list && (
-                  <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full">
                     <Users size={11} /> Teilnehmerliste
                   </span>
                 )}

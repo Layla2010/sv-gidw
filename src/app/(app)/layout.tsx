@@ -10,7 +10,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const { profile } = useProfile()
 
   return (
-    <div className="flex h-full bg-gray-50">
+    <div className="flex h-full bg-slate-50">
       <Sidebar
         userRole={profile?.role ?? 'mitglied'}
         userName={profile?.full_name || profile?.email || ''}
@@ -19,10 +19,10 @@ function AppShell({ children }: { children: React.ReactNode }) {
       />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <div className="lg:hidden flex items-center gap-3 px-4 h-16 bg-white border-b border-gray-200">
+        <div className="lg:hidden flex items-center gap-3 px-4 h-16 bg-slate-900 border-b border-slate-700">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-2 text-gray-500 hover:text-gray-700"
+            className="p-2 text-slate-400 hover:text-white"
           >
             <Menu size={20} />
           </button>

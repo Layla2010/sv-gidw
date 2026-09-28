@@ -34,19 +34,20 @@ function DeadlineBadge({ deadline }: { deadline: string }) {
   return <span className="text-xs text-gray-500">{format(date, 'd. MMM', { locale: de })}</span>
 }
 
-function Widget({ title, linkHref, linkLabel, children }: {
+function Widget({ title, linkHref, linkLabel, children, accent }: {
   title: string
   linkHref?: string
   linkLabel?: string
   children: React.ReactNode
+  accent?: string
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col min-h-0 lg:h-full">
-      <div className="flex items-center justify-between mb-3 flex-shrink-0">
+    <div className="bg-white rounded-xl border border-gray-200 flex flex-col min-h-0 lg:h-full overflow-hidden shadow-sm">
+      <div className={`flex items-center justify-between px-4 py-3 flex-shrink-0 border-b border-gray-100 ${accent ?? ''}`}>
         <h2 className="font-semibold text-gray-900 text-sm">{title}</h2>
         {linkHref && <Link href={linkHref} className="text-xs text-blue-600 hover:underline">{linkLabel}</Link>}
       </div>
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div className="flex-1 overflow-y-auto min-h-0 p-4">
         {children}
       </div>
     </div>
@@ -85,7 +86,7 @@ export default function DashboardPage() {
 
         {/* Offene Aufgaben */}
         <div className="lg:col-span-2 lg:row-span-1 min-h-0">
-          <Widget title="Offene Aufgaben" linkHref="/projekte" linkLabel="Alle Projekte →">
+          <Widget title="Offene Aufgaben" linkHref="/projekte" linkLabel="Alle Projekte →" accent="bg-amber-50">
             {tasks.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full py-4">
                 <CheckCircle2 size={28} className="text-gray-300 mb-2" />
@@ -116,7 +117,7 @@ export default function DashboardPage() {
 
         {/* Aktive Projekte */}
         <div className="lg:col-span-1 lg:row-span-1 min-h-0">
-          <Widget title="Aktive Projekte" linkHref="/projekte" linkLabel="Alle →">
+          <Widget title="Aktive Projekte" linkHref="/projekte" linkLabel="Alle →" accent="bg-blue-50">
             {projects.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full py-4">
                 <FolderOpen size={28} className="text-gray-300 mb-2" />
@@ -143,7 +144,7 @@ export default function DashboardPage() {
 
         {/* Zuletzt bearbeitet */}
         <div className="lg:col-span-3 min-h-0">
-          <Widget title="Zuletzt bearbeitet">
+          <Widget title="Zuletzt bearbeitet" accent="bg-violet-50">
             {recentDocs.length === 0 && recentProtocols.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full py-4">
                 <FileText size={28} className="text-gray-300 mb-2" />

@@ -188,7 +188,7 @@ export default function ChronikPage() {
           <div key={jahr}>
             {/* Jahres-Überschrift */}
             <div className="flex items-center gap-3 mb-4">
-              <span className="text-lg font-bold text-gray-900">{jahr}</span>
+              <span className="text-sm font-bold text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-1">{jahr}</span>
               <div className="flex-1 h-px bg-gray-200" />
             </div>
 

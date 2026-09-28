@@ -58,9 +58,9 @@ export default function KapazitaetenPage() {
 
       <div className="space-y-3">
         {profiles.map(profile => (
-          <div key={profile.id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+          <div key={profile.id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow">
             {/* Avatar */}
-            <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center text-sm font-semibold text-blue-700 flex-shrink-0">
+            <div className="w-9 h-9 bg-blue-500 rounded-full flex items-center justify-center text-sm font-semibold text-white flex-shrink-0 shadow-sm">
               {(profile.full_name || profile.email).charAt(0).toUpperCase()}
             </div>
 

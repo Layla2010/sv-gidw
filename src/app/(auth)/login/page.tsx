@@ -33,9 +33,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <div className="w-full max-w-sm">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+        <div className="bg-white rounded-2xl shadow-2xl p-8">
           <div className="mb-8 text-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/sv-logo.png" alt="SV Logo" className="h-20 w-auto mx-auto mb-4 object-contain" />

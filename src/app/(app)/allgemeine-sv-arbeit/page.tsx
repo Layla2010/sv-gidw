@@ -138,7 +138,7 @@ export default function AllgemeineSVArbeitPage() {
       {/* Textfelder */}
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-800">Textfelder</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Textfelder</h2>
           <button
             onClick={() => setShowNewDoc(!showNewDoc)}
             className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
@@ -183,15 +183,15 @@ export default function AllgemeineSVArbeitPage() {
             {documents.map(doc => (
               <div
                 key={doc.id}
-                className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-xl hover:border-blue-200 transition-colors group"
+                className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-xl hover:border-violet-200 hover:shadow-md transition-all group shadow-sm"
               >
-                <FileText size={18} className="text-blue-500 flex-shrink-0" />
+                <FileText size={18} className="text-violet-400 flex-shrink-0" />
                 <Link
                   href={`/allgemeine-sv-arbeit/${doc.id}`}
                   className="flex-1 min-w-0"
                 >
-                  <p className="text-sm font-medium text-gray-900 group-hover:text-blue-600">{doc.title}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-sm font-medium text-gray-900 group-hover:text-violet-600">{doc.title}</p>
+                  <p className="text-xs text-gray-400">
                     Zuletzt bearbeitet: {format(new Date(doc.updated_at), 'd. MMM yyyy', { locale: de })}
                   </p>
                 </Link>
@@ -210,7 +210,7 @@ export default function AllgemeineSVArbeitPage() {
       {/* Protokolle */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-800">Protokolle und Dokumente</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Protokolle und Dokumente</h2>
           <button
             onClick={() => setShowUpload(!showUpload)}
             className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
@@ -271,14 +271,14 @@ export default function AllgemeineSVArbeitPage() {
               .sort(([a], [b]) => b.localeCompare(a))
               .map(([schoolYear, protos]) => (
                 <div key={schoolYear}>
-                  <h3 className="text-sm font-medium text-gray-500 mb-2">Schuljahr {schoolYear}</h3>
+                  <h3 className="text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-1 mb-2 inline-block">Schuljahr {schoolYear}</h3>
                   <div className="space-y-2">
                     {protos.map(protocol => (
                       <div
                         key={protocol.id}
-                        className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-xl group"
+                        className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-xl hover:border-blue-200 hover:shadow-md transition-all group shadow-sm"
                       >
-                        <File size={18} className="text-gray-400 flex-shrink-0" />
+                        <File size={18} className="text-blue-400 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900">{protocol.title}</p>
                           <p className="text-xs text-gray-500">
