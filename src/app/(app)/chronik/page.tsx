@@ -236,7 +236,7 @@ export default function ChronikPage() {
                         )}
                       </div>
                       {isAdmin && (
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                        <div className="flex gap-1 flex-shrink-0">
                           <button onClick={() => {
                             setEditingId(entry.id)
                             setEditEntry({ datum: formatDatum(entry.datum), aktion: entry.aktion, sv_lehrer: entry.sv_lehrer ?? '', beschreibung: entry.beschreibung ?? '' })

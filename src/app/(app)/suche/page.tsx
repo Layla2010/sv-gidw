@@ -153,7 +153,7 @@ export default function SuchePage() {
                 </button>
                 <button
                   onClick={(e) => deleteRecent(q, e)}
-                  className="p-1 text-gray-300 hover:text-gray-500 opacity-0 group-hover:opacity-100"
+                  className="p-1 text-gray-300 hover:text-gray-500"
                 >
                   <X size={13} />
                 </button>

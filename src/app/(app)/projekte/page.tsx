@@ -157,18 +157,12 @@ export default function ProjektePage() {
       ) : !showNew ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {projects.map(project => (
-            <div key={project.id} className="relative bg-white border border-gray-200 rounded-xl p-5 hover:border-blue-200 transition-colors group">
+            <div key={project.id} className="relative bg-white border border-gray-200 rounded-xl p-5 hover:border-blue-200 transition-colors">
               <Link href={`/projekte/${project.id}`} className="absolute inset-0 rounded-xl" />
               <div className="flex items-start justify-between mb-3">
                 <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <FolderOpen size={20} className="text-blue-600" />
                 </div>
-                <button
-                  onClick={() => setConfirmDeleteId(project.id)}
-                  className="relative z-10 p-1.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <Trash2 size={15} />
-                </button>
               </div>
               <h3 className="font-semibold text-gray-900 mb-1">{project.name}</h3>
               {project.description && (

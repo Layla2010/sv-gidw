@@ -58,8 +58,8 @@ export default function AllgemeineSVArbeitPage() {
   }
 
   async function uploadProtocol() {
-    if (!uploadFile || !uploadTitle.trim() || !uploadDate) {
-      setUploadError('Bitte alle Felder ausfüllen.')
+    if (!uploadFile || !uploadTitle.trim()) {
+      setUploadError('Bitte Titel und Datei angeben.')
       return
     }
     if (!ALLOWED_TYPES.includes(uploadFile.type)) {
@@ -83,13 +83,12 @@ export default function AllgemeineSVArbeitPage() {
     }
     await supabase.from('protocols').insert({
       title: uploadTitle.trim(),
-      meeting_date: uploadDate,
+      meeting_date: new Date().toISOString().split('T')[0],
       file_path: filePath,
       file_name: uploadFile.name,
       file_size: uploadFile.size,
     })
     setUploadTitle('')
-    setUploadDate('')
     setUploadFile(null)
     setShowUpload(false)
     setLoading(false)
@@ -198,7 +197,7 @@ export default function AllgemeineSVArbeitPage() {
                 </Link>
                 <button
                   onClick={() => setConfirmDelete({ type: 'doc', id: doc.id })}
-                  className="p-1.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="p-1.5 text-gray-400 hover:text-red-500 transition-opacity"
                 >
                   <Trash2 size={15} />
                 </button>
@@ -211,12 +210,12 @@ export default function AllgemeineSVArbeitPage() {
       {/* Protokolle */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-800">Protokolle</h2>
+          <h2 className="text-lg font-semibold text-gray-800">Protokolle und Dokumente</h2>
           <button
             onClick={() => setShowUpload(!showUpload)}
             className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
           >
-            <Upload size={16} /> Protokoll hochladen
+            <Upload size={16} /> Datei hochladen
           </button>
         </div>
 
@@ -230,15 +229,7 @@ export default function AllgemeineSVArbeitPage() {
                 onChange={e => setUploadTitle(e.target.value)}
                 placeholder="z.B. SV-Sitzung Januar"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Datum des Treffens</label>
-              <input
-                type="date"
-                value={uploadDate}
-                onChange={e => setUploadDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoFocus
               />
             </div>
             <div>
@@ -302,7 +293,7 @@ export default function AllgemeineSVArbeitPage() {
                         </button>
                         <button
                           onClick={() => setConfirmDelete({ type: 'protocol', id: protocol.id, filePath: protocol.file_path })}
-                          className="p-1.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="p-1.5 text-gray-400 hover:text-red-500 transition-opacity"
                         >
                           <Trash2 size={15} />
                         </button>

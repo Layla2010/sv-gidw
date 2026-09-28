@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { format, differenceInDays, isPast, isToday } from 'date-fns'
@@ -74,6 +74,7 @@ export default function ProjectPage() {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [files, setFiles] = useState<ProjectFile[]>([])
   const [confirmDeleteFileId, setConfirmDeleteFileId] = useState<string | null>(null)
+  const [confirmDeleteProject, setConfirmDeleteProject] = useState(false)
   const [tab, setTab] = useState<'aufgaben' | 'teilnehmer' | 'dateien'>('aufgaben')
 
   // Task form
@@ -99,6 +100,12 @@ export default function ProjectPage() {
   const [uploading, setUploading] = useState(false)
 
   const supabase = createClient()
+  const router = useRouter()
+
+  async function deleteProject() {
+    await supabase.from('projects').delete().eq('id', projectId)
+    router.push('/projekte')
+  }
 
   async function loadAll() {
     const [projRes, tasksRes, partRes, filesRes] = await Promise.all([
@@ -275,14 +282,28 @@ export default function ProjectPage() {
           />
         ) : null
       })()}
+      {confirmDeleteProject && (
+        <ConfirmDialog
+          message={`„${project.name}" und alle Inhalte werden unwiderruflich gelöscht.`}
+          onConfirm={deleteProject}
+          onCancel={() => setConfirmDeleteProject(false)}
+        />
+      )}
+
       <div className="flex items-center gap-3 mb-6">
         <Link href="/projekte" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
           <ArrowLeft size={18} />
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-semibold text-gray-900">{project.name}</h1>
           {project.description && <p className="text-sm text-gray-500 mt-0.5">{project.description}</p>}
         </div>
+        <button
+          onClick={() => setConfirmDeleteProject(true)}
+          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+        >
+          <Trash2 size={18} />
+        </button>
       </div>
 
       {/* Tabs */}
@@ -643,7 +664,7 @@ export default function ProjectPage() {
                   </button>
                   <button
                     onClick={() => setConfirmDeleteFileId(file.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100"
+                    className="p-1.5 text-gray-400 hover:text-red-500"
                   >
                     <Trash2 size={15} />
                   </button>
