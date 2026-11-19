@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -17,7 +17,7 @@ import {
   useSensor, useSensors, type DragEndEvent,
 } from '@dnd-kit/core'
 import {
-  SortableContext, horizontalListSortingStrategy,
+  SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy,
   useSortable, arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -54,6 +54,47 @@ function SortableColHeader({
   )
 }
 
+function SortableZeitplanColHeader({
+  col, label, onDelete,
+}: { col: string; label: string; onDelete: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: `zcol-${col}` })
+  return (
+    <th
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap text-xs select-none"
+    >
+      <span className="flex items-center gap-0.5">
+        <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 touch-none" title="Spalte verschieben">
+          <GripVertical size={12} />
+        </span>
+        {label}
+        <button onClick={onDelete} className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0 ml-0.5" title={`Spalte "${label}" ausblenden`}>
+          <X size={11} />
+        </button>
+      </span>
+    </th>
+  )
+}
+
+function SortableZeitplanRow({ id, children }: { id: string; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: `zrow-${id}` })
+  return (
+    <tr
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      className="hover:bg-gray-50"
+    >
+      <td className="px-1 py-1 w-5">
+        <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 touch-none block">
+          <GripVertical size={12} />
+        </span>
+      </td>
+      {children}
+    </tr>
+  )
+}
+
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_TYPES = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
 
@@ -69,6 +110,12 @@ const COL_LABELS: Record<string, string> = {
 }
 
 const BOOL_COLS = new Set(['anwesend', 'ueber_nacht', 'gegangen'])
+
+const ZEITPLAN_BASE_COLS = ['uhrzeit', 'programmpunkt', 'ort', 'verantwortlich', 'bemerkung']
+const ZEITPLAN_COL_LABELS: Record<string, string> = {
+  uhrzeit: 'Uhrzeit', programmpunkt: 'Programmpunkt', ort: 'Ort / Raum',
+  verantwortlich: 'Verantwortlich', bemerkung: 'Bemerkung',
+}
 
 function parseLocalDate(str: string): Date {
   const [y, m, d] = str.split('-').map(Number)
@@ -105,8 +152,6 @@ function DeadlineChip({ deadline }: { deadline: string }) {
     </span>
   )
 }
-
-const EMPTY_ZEITPLAN = { uhrzeit: '', programmpunkt: '', ort: '', verantwortlich: '', bemerkung: '' }
 
 export default function ProjectPage() {
   const params = useParams()
@@ -145,11 +190,13 @@ export default function ProjectPage() {
   const [newParticipant, setNewParticipant] = useState({ name: '', rolle: '' })
   const [showParticipantForm, setShowParticipantForm] = useState(false)
 
-  // Zeitplan
-  const [showZeitplanForm, setShowZeitplanForm] = useState(false)
-  const [newZeitplan, setNewZeitplan] = useState(EMPTY_ZEITPLAN)
-  const [editingZeitplanId, setEditingZeitplanId] = useState<string | null>(null)
-  const [editingZeitplan, setEditingZeitplan] = useState(EMPTY_ZEITPLAN)
+  // Zeitplan column management
+  const [zeitplanExtraColumns, setZeitplanExtraColumns] = useState<string[]>([])
+  const [zeitplanHiddenColumns, setZeitplanHiddenColumns] = useState<string[]>([])
+  const [zeitplanOrderedColumns, setZeitplanOrderedColumns] = useState<string[]>([])
+  const [showAddZeitplanCol, setShowAddZeitplanCol] = useState(false)
+  const [newZeitplanColName, setNewZeitplanColName] = useState('')
+  const [confirmDeleteZeitplanCol, setConfirmDeleteZeitplanCol] = useState<{ col: string; isExtra: boolean } | null>(null)
 
   // File upload
   const [uploadFile, setUploadFile] = useState<File | null>(null)
@@ -187,6 +234,20 @@ export default function ProjectPage() {
     setExtraColumns(extra)
     setHiddenColumns(hidden)
     setOrderedColumns(ordered)
+
+    // Zeitplan columns
+    const zhidden = proj?.zeitplan_hidden_columns ?? []
+    const zextra = proj?.zeitplan_extra_columns ?? []
+    const zBaseActive = ZEITPLAN_BASE_COLS.filter(c => !zhidden.includes(c))
+    const zAllActive = [...zBaseActive, ...zextra]
+    const zstoredOrder = proj?.zeitplan_column_order
+    const zordered = zstoredOrder?.length
+      ? [...zstoredOrder.filter((c: string) => zAllActive.includes(c)), ...zAllActive.filter(c => !zstoredOrder.includes(c))]
+      : zAllActive
+    setZeitplanExtraColumns(zextra)
+    setZeitplanHiddenColumns(zhidden)
+    setZeitplanOrderedColumns(zordered)
+
     setTasks(tasksRes.data ?? [])
     setParticipants(partRes.data ?? [])
     setFiles(filesRes.data ?? [])
@@ -321,44 +382,87 @@ export default function ProjectPage() {
   }
 
   // Zeitplan
-  async function addZeitplanEintrag() {
-    if (!newZeitplan.programmpunkt.trim()) return
-    await supabase.from('zeitplan_eintraege').insert({
+  async function addZeitplanRow() {
+    const { data } = await supabase.from('zeitplan_eintraege').insert({
       project_id: projectId,
-      uhrzeit: newZeitplan.uhrzeit.trim() || null,
-      programmpunkt: newZeitplan.programmpunkt.trim(),
-      ort: newZeitplan.ort.trim() || null,
-      verantwortlich: newZeitplan.verantwortlich.trim() || null,
-      bemerkung: newZeitplan.bemerkung.trim() || null,
+      programmpunkt: '',
       sort_order: zeitplan.length,
-    })
-    setNewZeitplan(EMPTY_ZEITPLAN)
-    setShowZeitplanForm(false)
-    loadAll()
+    }).select().single()
+    if (data) setZeitplan(prev => [...prev, data as ZeitplanEintrag])
   }
 
-  function startEditZeitplan(e: ZeitplanEintrag) {
-    setEditingZeitplanId(e.id)
-    setEditingZeitplan({
-      uhrzeit: e.uhrzeit ?? '',
-      programmpunkt: e.programmpunkt,
-      ort: e.ort ?? '',
-      verantwortlich: e.verantwortlich ?? '',
-      bemerkung: e.bemerkung ?? '',
+  function updateZeitplanField(id: string, field: string, value: string) {
+    setZeitplan(prev => {
+      const e = prev.find(e => e.id === id)
+      if (!e) return prev
+      void supabase.from('zeitplan_eintraege').update({ [field]: value || null }).eq('id', id)
+      return prev.map(e => e.id === id ? { ...e, [field]: value } : e)
     })
   }
 
-  async function saveEditZeitplan() {
-    if (!editingZeitplanId || !editingZeitplan.programmpunkt.trim()) return
-    await supabase.from('zeitplan_eintraege').update({
-      uhrzeit: editingZeitplan.uhrzeit.trim() || null,
-      programmpunkt: editingZeitplan.programmpunkt.trim(),
-      ort: editingZeitplan.ort.trim() || null,
-      verantwortlich: editingZeitplan.verantwortlich.trim() || null,
-      bemerkung: editingZeitplan.bemerkung.trim() || null,
-    }).eq('id', editingZeitplanId)
-    setEditingZeitplanId(null)
-    loadAll()
+  function updateZeitplanExtra(id: string, col: string, value: string) {
+    setZeitplan(prev => {
+      const e = prev.find(e => e.id === id)
+      if (!e) return prev
+      const updatedExtra = { ...(e.extra ?? {}), [col]: value }
+      void supabase.from('zeitplan_eintraege').update({ extra: updatedExtra }).eq('id', id)
+      return prev.map(e => e.id === id ? { ...e, extra: updatedExtra } : e)
+    })
+  }
+
+  async function addZeitplanColumn() {
+    const name = newZeitplanColName.trim()
+    if (!name) return
+    const updatedExtra = [...zeitplanExtraColumns, name]
+    const updatedOrder = [...zeitplanOrderedColumns, name]
+    await supabase.from('projects').update({ zeitplan_extra_columns: updatedExtra, zeitplan_column_order: updatedOrder }).eq('id', projectId)
+    setZeitplanExtraColumns(updatedExtra)
+    setZeitplanOrderedColumns(updatedOrder)
+    setNewZeitplanColName('')
+    setShowAddZeitplanCol(false)
+  }
+
+  async function removeZeitplanColumn(col: string, isExtra: boolean) {
+    const updatedOrder = zeitplanOrderedColumns.filter(c => c !== col)
+    if (isExtra) {
+      const updatedExtra = zeitplanExtraColumns.filter(c => c !== col)
+      await supabase.from('projects').update({ zeitplan_extra_columns: updatedExtra, zeitplan_column_order: updatedOrder }).eq('id', projectId)
+      setZeitplanExtraColumns(updatedExtra)
+    } else {
+      const updatedHidden = [...zeitplanHiddenColumns, col]
+      await supabase.from('projects').update({ zeitplan_hidden_columns: updatedHidden, zeitplan_column_order: updatedOrder }).eq('id', projectId)
+      setZeitplanHiddenColumns(updatedHidden)
+    }
+    setZeitplanOrderedColumns(updatedOrder)
+    setConfirmDeleteZeitplanCol(null)
+  }
+
+  async function handleZeitplanDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const activeId = active.id as string
+    const overId = over.id as string
+    if (activeId.startsWith('zcol-') && overId.startsWith('zcol-')) {
+      const colA = activeId.slice(5)
+      const colB = overId.slice(5)
+      const oldIdx = zeitplanOrderedColumns.indexOf(colA)
+      const newIdx = zeitplanOrderedColumns.indexOf(colB)
+      if (oldIdx === -1 || newIdx === -1) return
+      const newOrder = arrayMove(zeitplanOrderedColumns, oldIdx, newIdx)
+      setZeitplanOrderedColumns(newOrder)
+      await supabase.from('projects').update({ zeitplan_column_order: newOrder }).eq('id', projectId)
+    } else if (activeId.startsWith('zrow-') && overId.startsWith('zrow-')) {
+      const rowAId = activeId.slice(5)
+      const rowBId = overId.slice(5)
+      const oldIdx = zeitplan.findIndex(e => e.id === rowAId)
+      const newIdx = zeitplan.findIndex(e => e.id === rowBId)
+      if (oldIdx === -1 || newIdx === -1) return
+      const newOrder = arrayMove(zeitplan, oldIdx, newIdx)
+      setZeitplan(newOrder)
+      newOrder.forEach((entry, idx) => {
+        void supabase.from('zeitplan_eintraege').update({ sort_order: idx }).eq('id', entry.id)
+      })
+    }
   }
 
   async function deleteZeitplanEintrag(id: string) {
@@ -415,6 +519,7 @@ export default function ProjectPage() {
   const templateColSet = new Set(
     (TEMPLATE_COLS[project.participant_template ?? 'meeting'] ?? TEMPLATE_COLS.meeting) as string[]
   )
+  const zeitplanBaseColSet = new Set(ZEITPLAN_BASE_COLS)
   const sortedParticipants = [...participants].sort((a, b) =>
     (a.name || '').localeCompare(b.name || '', 'de')
   )
@@ -443,6 +548,13 @@ export default function ProjectPage() {
           message={`Spalte „${confirmDeleteCol.col}" ausblenden? Die eingetragenen Daten bleiben gespeichert, sind aber nicht mehr sichtbar.`}
           onConfirm={() => removeColumn(confirmDeleteCol.col, confirmDeleteCol.isExtra)}
           onCancel={() => setConfirmDeleteCol(null)}
+        />
+      )}
+      {confirmDeleteZeitplanCol && (
+        <ConfirmDialog
+          message={`Spalte „${confirmDeleteZeitplanCol.col}" ausblenden? Die Daten bleiben gespeichert.`}
+          onConfirm={() => removeZeitplanColumn(confirmDeleteZeitplanCol.col, confirmDeleteZeitplanCol.isExtra)}
+          onCancel={() => setConfirmDeleteZeitplanCol(null)}
         />
       )}
 
@@ -780,156 +892,97 @@ export default function ProjectPage() {
         <div>
           <div className="flex justify-end mb-3">
             <button
-              onClick={() => setShowZeitplanForm(!showZeitplanForm)}
+              onClick={addZeitplanRow}
               className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
             >
-              <Plus size={16} /> Eintrag hinzufügen
+              <Plus size={16} /> Zeile hinzufügen
             </button>
           </div>
-
-          {showZeitplanForm && (
-            <div className="mb-4 p-4 bg-white border border-gray-200 rounded-xl space-y-3">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Uhrzeit</label>
-                  <input
-                    type="text"
-                    value={newZeitplan.uhrzeit}
-                    onChange={e => setNewZeitplan({ ...newZeitplan, uhrzeit: e.target.value })}
-                    placeholder="z.B. 09:00"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    autoFocus
-                  />
-                </div>
-                <div className="col-span-2 sm:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Programmpunkt *</label>
-                  <input
-                    type="text"
-                    value={newZeitplan.programmpunkt}
-                    onChange={e => setNewZeitplan({ ...newZeitplan, programmpunkt: e.target.value })}
-                    placeholder="Was findet statt?"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Ort / Raum</label>
-                  <input
-                    type="text"
-                    value={newZeitplan.ort}
-                    onChange={e => setNewZeitplan({ ...newZeitplan, ort: e.target.value })}
-                    placeholder="z.B. Aula"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Verantwortlich</label>
-                  <input
-                    type="text"
-                    value={newZeitplan.verantwortlich}
-                    onChange={e => setNewZeitplan({ ...newZeitplan, verantwortlich: e.target.value })}
-                    placeholder="Name"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Bemerkung</label>
-                  <input
-                    type="text"
-                    value={newZeitplan.bemerkung}
-                    onChange={e => setNewZeitplan({ ...newZeitplan, bemerkung: e.target.value })}
-                    placeholder="Optional"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={addZeitplanEintrag} disabled={!newZeitplan.programmpunkt.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                  Hinzufügen
-                </button>
-                <button onClick={() => { setShowZeitplanForm(false); setNewZeitplan(EMPTY_ZEITPLAN) }}
-                  className="px-3 py-2 text-gray-600 text-sm">Abbrechen</button>
-              </div>
-            </div>
-          )}
 
           {zeitplan.length === 0 ? (
             <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
               <Calendar size={36} className="mx-auto text-gray-300 mb-2" />
               <p className="text-sm text-gray-500">Noch keine Zeitplaneinträge</p>
+              <button onClick={addZeitplanRow} className="mt-3 text-sm text-blue-600 hover:text-blue-700">
+                Ersten Eintrag hinzufügen
+              </button>
             </div>
           ) : (
-            <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-              <table className="text-sm min-w-max w-full">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="text-left px-3 py-2 font-medium text-gray-600 whitespace-nowrap text-xs w-20">Uhrzeit</th>
-                    <th className="text-left px-3 py-2 font-medium text-gray-600 whitespace-nowrap text-xs">Programmpunkt</th>
-                    <th className="text-left px-3 py-2 font-medium text-gray-600 whitespace-nowrap text-xs">Ort / Raum</th>
-                    <th className="text-left px-3 py-2 font-medium text-gray-600 whitespace-nowrap text-xs">Verantwortlich</th>
-                    <th className="text-left px-3 py-2 font-medium text-gray-600 whitespace-nowrap text-xs">Bemerkung</th>
-                    <th className="w-16"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {zeitplan.map(entry => (
-                    <tr key={entry.id} className="hover:bg-gray-50">
-                      {editingZeitplanId === entry.id ? (
-                        <>
-                          <td className="px-2 py-1.5">
-                            <input autoFocus value={editingZeitplan.uhrzeit}
-                              onChange={e => setEditingZeitplan({ ...editingZeitplan, uhrzeit: e.target.value })}
-                              className="w-16 px-2 py-1 border border-blue-400 rounded text-sm focus:outline-none" placeholder="09:00" />
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <input value={editingZeitplan.programmpunkt}
-                              onChange={e => setEditingZeitplan({ ...editingZeitplan, programmpunkt: e.target.value })}
-                              className="w-40 px-2 py-1 border border-blue-400 rounded text-sm focus:outline-none" />
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <input value={editingZeitplan.ort}
-                              onChange={e => setEditingZeitplan({ ...editingZeitplan, ort: e.target.value })}
-                              className="w-28 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none" placeholder="Ort" />
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <input value={editingZeitplan.verantwortlich}
-                              onChange={e => setEditingZeitplan({ ...editingZeitplan, verantwortlich: e.target.value })}
-                              className="w-28 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none" placeholder="Name" />
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <input value={editingZeitplan.bemerkung}
-                              onChange={e => setEditingZeitplan({ ...editingZeitplan, bemerkung: e.target.value })}
-                              className="w-32 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none" placeholder="Bemerkung" />
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <div className="flex gap-1">
-                              <button onClick={saveEditZeitplan} className="p-1 text-green-600 hover:text-green-700"><Check size={15} /></button>
-                              <button onClick={() => setEditingZeitplanId(null)} className="p-1 text-gray-400 hover:text-gray-600"><X size={15} /></button>
-                            </div>
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="px-3 py-2 font-medium text-blue-700 text-xs whitespace-nowrap">
-                            {entry.uhrzeit || '—'}
-                          </td>
-                          <td className="px-3 py-2 font-medium text-gray-900">{entry.programmpunkt}</td>
-                          <td className="px-3 py-2 text-gray-500 text-xs">{entry.ort || '—'}</td>
-                          <td className="px-3 py-2 text-gray-500 text-xs">{entry.verantwortlich || '—'}</td>
-                          <td className="px-3 py-2 text-gray-500 text-xs">{entry.bemerkung || '—'}</td>
-                          <td className="px-2 py-2">
-                            <div className="flex gap-1">
-                              <button onClick={() => startEditZeitplan(entry)} className="p-1 text-gray-300 hover:text-blue-500"><Pencil size={14} /></button>
-                              <button onClick={() => deleteZeitplanEintrag(entry.id)} className="p-1 text-gray-300 hover:text-red-500"><Trash2 size={14} /></button>
-                            </div>
-                          </td>
-                        </>
-                      )}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleZeitplanDragEnd}>
+              <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+                <table className="text-sm min-w-max w-full">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="w-5 px-1 py-2"></th>
+                      <SortableContext items={zeitplanOrderedColumns.map(c => `zcol-${c}`)} strategy={horizontalListSortingStrategy}>
+                        {zeitplanOrderedColumns.map(col => (
+                          <SortableZeitplanColHeader
+                            key={col}
+                            col={col}
+                            label={zeitplanBaseColSet.has(col) ? (ZEITPLAN_COL_LABELS[col] ?? col) : col}
+                            onDelete={() => setConfirmDeleteZeitplanCol({ col, isExtra: !zeitplanBaseColSet.has(col) })}
+                          />
+                        ))}
+                      </SortableContext>
+                      <th className="px-2 py-2 w-8">
+                        {showAddZeitplanCol ? (
+                          <div className="flex items-center gap-1">
+                            <input autoFocus value={newZeitplanColName} onChange={e => setNewZeitplanColName(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') addZeitplanColumn(); if (e.key === 'Escape') setShowAddZeitplanCol(false) }}
+                              className="w-20 px-1 py-0.5 border border-blue-400 rounded text-xs focus:outline-none"
+                              placeholder="Name" />
+                            <button onClick={addZeitplanColumn} className="text-green-600"><Check size={12} /></button>
+                            <button onClick={() => setShowAddZeitplanCol(false)} className="text-gray-400"><X size={12} /></button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setShowAddZeitplanCol(true)} className="p-1 text-gray-400 hover:text-blue-500 rounded">
+                            <Plus size={13} />
+                          </button>
+                        )}
+                      </th>
+                      <th className="w-8"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    <SortableContext items={zeitplan.map(e => `zrow-${e.id}`)} strategy={verticalListSortingStrategy}>
+                      {zeitplan.map(entry => (
+                        <SortableZeitplanRow key={entry.id} id={entry.id}>
+                          {zeitplanOrderedColumns.map(col => (
+                            <td key={col} className="px-1 py-1">
+                              {zeitplanBaseColSet.has(col) ? (
+                                <input
+                                  type="text"
+                                  value={(entry[col as keyof ZeitplanEintrag] as string) ?? ''}
+                                  onChange={e => updateZeitplanField(entry.id, col, e.target.value)}
+                                  size={Math.max(3, String(entry[col as keyof ZeitplanEintrag] ?? '').length)}
+                                  className="px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
+                                  placeholder="—"
+                                />
+                              ) : (
+                                <input
+                                  type="text"
+                                  value={(entry.extra ?? {})[col] ?? ''}
+                                  onChange={e => updateZeitplanExtra(entry.id, col, e.target.value)}
+                                  size={Math.max(3, ((entry.extra ?? {})[col] ?? '').length)}
+                                  className="px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
+                                  placeholder="—"
+                                />
+                              )}
+                            </td>
+                          ))}
+                          <td className="px-2 py-2 w-8"></td>
+                          <td className="px-1 py-1">
+                            <button onClick={() => deleteZeitplanEintrag(entry.id)} className="p-1 text-gray-300 hover:text-red-500">
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </SortableZeitplanRow>
+                      ))}
+                    </SortableContext>
+                  </tbody>
+                </table>
+              </div>
+            </DndContext>
           )}
         </div>
       )}

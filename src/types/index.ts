@@ -38,6 +38,9 @@ export interface Project {
   extra_columns: string[]
   hidden_columns: string[]
   column_order: string[] | null
+  zeitplan_extra_columns: string[]
+  zeitplan_hidden_columns: string[]
+  zeitplan_column_order: string[] | null
   created_by: string
   created_at: string
   updated_at: string
@@ -84,10 +87,11 @@ export interface ZeitplanEintrag {
   id: string
   project_id: string
   uhrzeit: string | null
-  programmpunkt: string
+  programmpunkt: string | null
   ort: string | null
   verantwortlich: string | null
   bemerkung: string | null
+  extra: Record<string, string> | null
   sort_order: number
   created_at: string
 }
