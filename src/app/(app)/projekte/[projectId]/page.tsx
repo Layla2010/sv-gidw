@@ -116,6 +116,16 @@ const ZEITPLAN_COL_LABELS: Record<string, string> = {
   uhrzeit: 'Uhrzeit', programmpunkt: 'Programmpunkt', ort: 'Ort / Raum',
   verantwortlich: 'Verantwortlich', bemerkung: 'Bemerkung',
 }
+const EMPTY_ZEITPLAN = { uhrzeit: '', programmpunkt: '', ort: '', verantwortlich: '', bemerkung: '' }
+
+function sortByUhrzeit(entries: ZeitplanEintrag[]): ZeitplanEintrag[] {
+  return [...entries].sort((a, b) => {
+    if (!a.uhrzeit && !b.uhrzeit) return 0
+    if (!a.uhrzeit) return 1
+    if (!b.uhrzeit) return -1
+    return a.uhrzeit.localeCompare(b.uhrzeit)
+  })
+}
 
 function parseLocalDate(str: string): Date {
   const [y, m, d] = str.split('-').map(Number)
@@ -189,6 +199,10 @@ export default function ProjectPage() {
   // Participant form
   const [newParticipant, setNewParticipant] = useState({ name: '', rolle: '' })
   const [showParticipantForm, setShowParticipantForm] = useState(false)
+
+  // Zeitplan form
+  const [showZeitplanForm, setShowZeitplanForm] = useState(false)
+  const [newZeitplan, setNewZeitplan] = useState(EMPTY_ZEITPLAN)
 
   // Zeitplan column management
   const [zeitplanExtraColumns, setZeitplanExtraColumns] = useState<string[]>([])
@@ -382,13 +396,24 @@ export default function ProjectPage() {
   }
 
   // Zeitplan
-  async function addZeitplanRow() {
+  async function addZeitplanEintrag() {
+    if (!newZeitplan.programmpunkt.trim()) return
     const { data } = await supabase.from('zeitplan_eintraege').insert({
       project_id: projectId,
-      programmpunkt: '',
-      sort_order: zeitplan.length,
+      uhrzeit: newZeitplan.uhrzeit.trim() || null,
+      programmpunkt: newZeitplan.programmpunkt.trim(),
+      ort: newZeitplan.ort.trim() || null,
+      verantwortlich: newZeitplan.verantwortlich.trim() || null,
+      bemerkung: newZeitplan.bemerkung.trim() || null,
     }).select().single()
-    if (data) setZeitplan(prev => [...prev, data as ZeitplanEintrag])
+    if (!data) return
+    const sorted = sortByUhrzeit([...zeitplan, data as ZeitplanEintrag])
+    setZeitplan(sorted)
+    sorted.forEach((entry, idx) => {
+      void supabase.from('zeitplan_eintraege').update({ sort_order: idx }).eq('id', entry.id)
+    })
+    setNewZeitplan(EMPTY_ZEITPLAN)
+    setShowZeitplanForm(false)
   }
 
   function updateZeitplanField(id: string, field: string, value: string) {
@@ -892,18 +917,95 @@ export default function ProjectPage() {
         <div>
           <div className="flex justify-end mb-3">
             <button
-              onClick={addZeitplanRow}
+              onClick={() => setShowZeitplanForm(!showZeitplanForm)}
               className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
             >
-              <Plus size={16} /> Zeile hinzufügen
+              <Plus size={16} /> Eintrag hinzufügen
             </button>
           </div>
+
+          {showZeitplanForm && (
+            <div className="mb-4 p-4 bg-white border border-gray-200 rounded-xl space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Uhrzeit</label>
+                  <input
+                    type="text"
+                    value={newZeitplan.uhrzeit}
+                    onChange={e => setNewZeitplan({ ...newZeitplan, uhrzeit: e.target.value })}
+                    placeholder="z.B. 09:00"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocus
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Programmpunkt *</label>
+                  <input
+                    type="text"
+                    value={newZeitplan.programmpunkt}
+                    onChange={e => setNewZeitplan({ ...newZeitplan, programmpunkt: e.target.value })}
+                    onKeyDown={e => { if (e.key === 'Enter') addZeitplanEintrag() }}
+                    placeholder="Was findet statt?"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Ort / Raum</label>
+                  <input
+                    type="text"
+                    value={newZeitplan.ort}
+                    onChange={e => setNewZeitplan({ ...newZeitplan, ort: e.target.value })}
+                    placeholder="z.B. Aula"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Verantwortlich</label>
+                  <input
+                    type="text"
+                    value={newZeitplan.verantwortlich}
+                    onChange={e => setNewZeitplan({ ...newZeitplan, verantwortlich: e.target.value })}
+                    placeholder="Name"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Bemerkung</label>
+                  <input
+                    type="text"
+                    value={newZeitplan.bemerkung}
+                    onChange={e => setNewZeitplan({ ...newZeitplan, bemerkung: e.target.value })}
+                    placeholder="Optional"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 items-center">
+                <button
+                  onClick={addZeitplanEintrag}
+                  disabled={!newZeitplan.programmpunkt.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Hinzufügen
+                </button>
+                <button
+                  onClick={() => { setShowZeitplanForm(false); setNewZeitplan(EMPTY_ZEITPLAN) }}
+                  className="px-3 py-2 text-gray-600 text-sm"
+                >
+                  Abbrechen
+                </button>
+                {newZeitplan.uhrzeit && (
+                  <span className="text-xs text-gray-400 ml-1">Wird nach Uhrzeit einsortiert</span>
+                )}
+              </div>
+            </div>
+          )}
 
           {zeitplan.length === 0 ? (
             <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
               <Calendar size={36} className="mx-auto text-gray-300 mb-2" />
               <p className="text-sm text-gray-500">Noch keine Zeitplaneinträge</p>
-              <button onClick={addZeitplanRow} className="mt-3 text-sm text-blue-600 hover:text-blue-700">
+              <button onClick={() => setShowZeitplanForm(true)} className="mt-3 text-sm text-blue-600 hover:text-blue-700">
                 Ersten Eintrag hinzufügen
               </button>
             </div>
