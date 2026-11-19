@@ -89,8 +89,10 @@ export default function ProjectPage() {
 
   // Custom columns
   const [extraColumns, setExtraColumns] = useState<string[]>([])
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
   const [newColName, setNewColName] = useState('')
   const [showAddCol, setShowAddCol] = useState(false)
+  const [confirmDeleteCol, setConfirmDeleteCol] = useState<{ col: string, isExtra: boolean } | null>(null)
 
   // Participant form
   const [newParticipant, setNewParticipant] = useState({ name: '', rolle: '' })
@@ -125,6 +127,7 @@ export default function ProjectPage() {
     ])
     setProject(projRes.data)
     setExtraColumns(projRes.data?.extra_columns ?? [])
+    setHiddenColumns(projRes.data?.hidden_columns ?? [])
     setTasks(tasksRes.data ?? [])
     setParticipants(partRes.data ?? [])
     setFiles(filesRes.data ?? [])
@@ -141,10 +144,17 @@ export default function ProjectPage() {
     setShowAddCol(false)
   }
 
-  async function removeExtraColumn(col: string) {
-    const updated = extraColumns.filter(c => c !== col)
-    await supabase.from('projects').update({ extra_columns: updated }).eq('id', projectId)
-    setExtraColumns(updated)
+  async function removeColumn(col: string, isExtra: boolean) {
+    if (isExtra) {
+      const updated = extraColumns.filter(c => c !== col)
+      await supabase.from('projects').update({ extra_columns: updated }).eq('id', projectId)
+      setExtraColumns(updated)
+    } else {
+      const updated = [...hiddenColumns, col]
+      await supabase.from('projects').update({ hidden_columns: updated }).eq('id', projectId)
+      setHiddenColumns(updated)
+    }
+    setConfirmDeleteCol(null)
   }
 
   // Fix: use functional setState so we always read the latest extra data (prevents stale closure bug)
@@ -329,7 +339,8 @@ export default function ProjectPage() {
 
   if (!project) return <div className="p-6 text-gray-500">Laden…</div>
 
-  const cols = project.participant_template ? TEMPLATE_COLS[project.participant_template] : TEMPLATE_COLS.meeting
+  const allCols = project.participant_template ? TEMPLATE_COLS[project.participant_template] : TEMPLATE_COLS.meeting
+  const cols = allCols.filter(c => !hiddenColumns.includes(c))
   const sortedParticipants = [...participants].sort((a, b) =>
     (a.name || '').localeCompare(b.name || '', 'de')
   )
@@ -351,6 +362,13 @@ export default function ProjectPage() {
           message={`„${project.name}" und alle Inhalte werden unwiderruflich gelöscht.`}
           onConfirm={deleteProject}
           onCancel={() => setConfirmDeleteProject(false)}
+        />
+      )}
+      {confirmDeleteCol && (
+        <ConfirmDialog
+          message={`Spalte „${confirmDeleteCol.col}" ausblenden? Die eingetragenen Daten bleiben gespeichert, sind aber nicht mehr sichtbar.`}
+          onConfirm={() => removeColumn(confirmDeleteCol.col, confirmDeleteCol.isExtra)}
+          onCancel={() => setConfirmDeleteCol(null)}
         />
       )}
 
@@ -604,16 +622,24 @@ export default function ProjectPage() {
                   <tr className="bg-gray-50 border-b border-gray-200">
                     {cols.map(col => (
                       <th key={col} className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap text-xs">
-                        {COL_LABELS[col]}
+                        <span className="flex items-center gap-1">
+                          {COL_LABELS[col]}
+                          <button
+                            onClick={() => setConfirmDeleteCol({ col, isExtra: false })}
+                            className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
+                            title={`Spalte "${COL_LABELS[col]}" ausblenden`}
+                          >
+                            <X size={11} />
+                          </button>
+                        </span>
                       </th>
                     ))}
                     {extraColumns.map(col => (
                       <th key={col} className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap text-xs">
                         <span className="flex items-center gap-1">
                           {col}
-                          {/* Always visible delete button — no hover-only on iPad */}
                           <button
-                            onClick={() => removeExtraColumn(col)}
+                            onClick={() => setConfirmDeleteCol({ col, isExtra: true })}
                             className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
                             title={`Spalte "${col}" löschen`}
                           >
