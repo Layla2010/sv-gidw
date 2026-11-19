@@ -199,10 +199,12 @@ export default function ProjectPage() {
   // Participant form
   const [newParticipant, setNewParticipant] = useState({ name: '', rolle: '' })
   const [showParticipantForm, setShowParticipantForm] = useState(false)
+  const [confirmDeleteParticipantId, setConfirmDeleteParticipantId] = useState<string | null>(null)
 
   // Zeitplan form
   const [showZeitplanForm, setShowZeitplanForm] = useState(false)
   const [newZeitplan, setNewZeitplan] = useState(EMPTY_ZEITPLAN)
+  const [confirmDeleteZeitplanRowId, setConfirmDeleteZeitplanRowId] = useState<string | null>(null)
 
   // Zeitplan column management
   const [zeitplanExtraColumns, setZeitplanExtraColumns] = useState<string[]>([])
@@ -582,6 +584,26 @@ export default function ProjectPage() {
           onCancel={() => setConfirmDeleteZeitplanCol(null)}
         />
       )}
+      {confirmDeleteParticipantId && (() => {
+        const p = participants.find(p => p.id === confirmDeleteParticipantId)
+        return p ? (
+          <ConfirmDialog
+            message={`„${p.name}" aus der Liste entfernen?`}
+            onConfirm={() => { deleteParticipant(p.id); setConfirmDeleteParticipantId(null) }}
+            onCancel={() => setConfirmDeleteParticipantId(null)}
+          />
+        ) : null
+      })()}
+      {confirmDeleteZeitplanRowId && (() => {
+        const e = zeitplan.find(e => e.id === confirmDeleteZeitplanRowId)
+        return e ? (
+          <ConfirmDialog
+            message={`Eintrag „${e.programmpunkt || e.uhrzeit || 'Zeile'}" löschen?`}
+            onConfirm={() => { deleteZeitplanEintrag(e.id); setConfirmDeleteZeitplanRowId(null) }}
+            onCancel={() => setConfirmDeleteZeitplanRowId(null)}
+          />
+        ) : null
+      })()}
 
       <div className="flex items-center gap-3 mb-6">
         <Link href="/projekte" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
@@ -898,7 +920,7 @@ export default function ProjectPage() {
                           </td>
                         ))}
                         <td className="px-1 py-1">
-                          <button onClick={() => deleteParticipant(p.id)} className="p-1 text-gray-300 hover:text-red-500">
+                          <button onClick={() => setConfirmDeleteParticipantId(p.id)} className="p-1 text-gray-300 hover:text-red-500">
                             <Trash2 size={14} />
                           </button>
                         </td>
@@ -1074,7 +1096,7 @@ export default function ProjectPage() {
                           ))}
                           <td className="px-2 py-2 w-8"></td>
                           <td className="px-1 py-1">
-                            <button onClick={() => deleteZeitplanEintrag(entry.id)} className="p-1 text-gray-300 hover:text-red-500">
+                            <button onClick={() => setConfirmDeleteZeitplanRowId(entry.id)} className="p-1 text-gray-300 hover:text-red-500">
                               <Trash2 size={14} />
                             </button>
                           </td>
