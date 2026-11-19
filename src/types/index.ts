@@ -87,6 +87,7 @@ export interface ZeitplanEintrag {
   id: string
   project_id: string
   uhrzeit: string | null
+  datum: string | null
   programmpunkt: string | null
   ort: string | null
   verantwortlich: string | null

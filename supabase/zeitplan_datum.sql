@@ -1,0 +1,1 @@
+ALTER TABLE zeitplan_eintraege ADD COLUMN IF NOT EXISTS datum date DEFAULT NULL;

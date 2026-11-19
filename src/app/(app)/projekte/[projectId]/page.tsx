@@ -116,7 +116,7 @@ const ZEITPLAN_COL_LABELS: Record<string, string> = {
   uhrzeit: 'Uhrzeit', programmpunkt: 'Programmpunkt', ort: 'Ort / Raum',
   verantwortlich: 'Verantwortlich', bemerkung: 'Bemerkung',
 }
-const EMPTY_ZEITPLAN = { uhrzeit: '', programmpunkt: '', ort: '', verantwortlich: '', bemerkung: '' }
+const EMPTY_ZEITPLAN = { uhrzeit: '', datum: '', programmpunkt: '', ort: '', verantwortlich: '', bemerkung: '' }
 
 function sortByUhrzeit(entries: ZeitplanEintrag[]): ZeitplanEintrag[] {
   return [...entries].sort((a, b) => {
@@ -420,6 +420,7 @@ export default function ProjectPage() {
     const { data } = await supabase.from('zeitplan_eintraege').insert({
       project_id: projectId,
       uhrzeit: newZeitplan.uhrzeit.trim() || null,
+      datum: newZeitplan.datum.trim() || null,
       programmpunkt: newZeitplan.programmpunkt.trim(),
       ort: newZeitplan.ort.trim() || null,
       verantwortlich: newZeitplan.verantwortlich.trim() || null,
@@ -984,6 +985,16 @@ export default function ProjectPage() {
             <div className="mb-4 p-4 bg-white border border-gray-200 rounded-xl space-y-3">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Datum</label>
+                  <input
+                    type="date"
+                    value={newZeitplan.datum}
+                    onChange={e => setNewZeitplan({ ...newZeitplan, datum: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocus
+                  />
+                </div>
+                <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Uhrzeit</label>
                   <input
                     type="text"
@@ -1106,16 +1117,32 @@ export default function ProjectPage() {
                       {zeitplan.map(entry => (
                         <SortableZeitplanRow key={entry.id} id={entry.id}>
                           {zeitplanOrderedColumns.map(col => (
-                            <td key={col} className="px-1 py-1">
+                            <td key={col} className={`px-1 py-1${col === 'bemerkung' ? ' min-w-[220px]' : ''}`}>
                               {zeitplanBaseColSet.has(col) ? (
                                 col === 'bemerkung' ? (
                                   <textarea
                                     value={(entry[col as keyof ZeitplanEintrag] as string) ?? ''}
                                     onChange={e => updateZeitplanField(entry.id, col, e.target.value)}
-                                    rows={Math.max(1, ((entry[col as keyof ZeitplanEintrag] as string) ?? '').split('\n').length)}
-                                    className="px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent resize-none w-full min-w-[120px]"
+                                    style={{ fieldSizing: 'content' } as React.CSSProperties}
+                                    className="px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent resize-none w-full min-h-[1.5rem]"
                                     placeholder="—"
                                   />
+                                ) : col === 'uhrzeit' ? (
+                                  <div className="flex flex-col">
+                                    <input
+                                      type="text"
+                                      value={(entry.uhrzeit as string) ?? ''}
+                                      onChange={e => updateZeitplanField(entry.id, 'uhrzeit', e.target.value)}
+                                      size={Math.max(3, String(entry.uhrzeit ?? '').length)}
+                                      className="px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
+                                      placeholder="—"
+                                    />
+                                    {entry.datum && (
+                                      <span className="px-1.5 text-[10px] text-gray-400 leading-tight">
+                                        {new Date(entry.datum + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
                                 <input
                                   type="text"
