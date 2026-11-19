@@ -8,15 +8,14 @@ import { format, differenceInDays, isPast, isToday } from 'date-fns'
 import { de } from 'date-fns/locale'
 import {
   ArrowLeft, Plus, Trash2, Upload, Download, AlertCircle,
-  Clock, CheckSquare, Square, Users, File, FolderOpen, Pencil, Check, X,
+  Clock, CheckSquare, Square, Users, File, FolderOpen, Pencil, Check, X, Calendar,
 } from 'lucide-react'
-import type { Project, Task, Participant, ProjectFile } from '@/types'
+import type { Project, Task, Participant, ProjectFile, ZeitplanEintrag } from '@/types'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_TYPES = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
 
-// Columns shown per template
 const TEMPLATE_COLS: Record<string, (keyof Participant)[]> = {
   overnight: ['name', 'rolle', 'klasse', 'anwesend', 'gruppenname', 'raum', 'ueber_nacht', 'buffet', 'gegangen'],
   daytrip:   ['name', 'rolle', 'klasse', 'anwesend', 'gruppenname', 'gegangen'],
@@ -66,6 +65,8 @@ function DeadlineChip({ deadline }: { deadline: string }) {
   )
 }
 
+const EMPTY_ZEITPLAN = { uhrzeit: '', programmpunkt: '', ort: '', verantwortlich: '', bemerkung: '' }
+
 export default function ProjectPage() {
   const params = useParams()
   const projectId = params.projectId as string
@@ -73,9 +74,10 @@ export default function ProjectPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [participants, setParticipants] = useState<Participant[]>([])
   const [files, setFiles] = useState<ProjectFile[]>([])
+  const [zeitplan, setZeitplan] = useState<ZeitplanEintrag[]>([])
   const [confirmDeleteFileId, setConfirmDeleteFileId] = useState<string | null>(null)
   const [confirmDeleteProject, setConfirmDeleteProject] = useState(false)
-  const [tab, setTab] = useState<'aufgaben' | 'teilnehmer' | 'dateien'>('aufgaben')
+  const [tab, setTab] = useState<'aufgaben' | 'teilnehmer' | 'dateien' | 'zeitplan'>('aufgaben')
 
   // Task form
   const [newTask, setNewTask] = useState({ aufgabe: '', beschreibung: '', verantwortliche: '', deadline: '' })
@@ -94,6 +96,12 @@ export default function ProjectPage() {
   const [newParticipant, setNewParticipant] = useState({ name: '', rolle: '' })
   const [showParticipantForm, setShowParticipantForm] = useState(false)
 
+  // Zeitplan
+  const [showZeitplanForm, setShowZeitplanForm] = useState(false)
+  const [newZeitplan, setNewZeitplan] = useState(EMPTY_ZEITPLAN)
+  const [editingZeitplanId, setEditingZeitplanId] = useState<string | null>(null)
+  const [editingZeitplan, setEditingZeitplan] = useState(EMPTY_ZEITPLAN)
+
   // File upload
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState('')
@@ -108,17 +116,19 @@ export default function ProjectPage() {
   }
 
   async function loadAll() {
-    const [projRes, tasksRes, partRes, filesRes] = await Promise.all([
+    const [projRes, tasksRes, partRes, filesRes, zeitplanRes] = await Promise.all([
       supabase.from('projects').select('*').eq('id', projectId).single(),
       supabase.from('tasks').select('*').eq('project_id', projectId).order('created_at'),
       supabase.from('participants').select('*').eq('project_id', projectId).order('sort_order'),
       supabase.from('project_files').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
+      supabase.from('zeitplan_eintraege').select('*').eq('project_id', projectId).order('sort_order').order('created_at'),
     ])
     setProject(projRes.data)
     setExtraColumns(projRes.data?.extra_columns ?? [])
     setTasks(tasksRes.data ?? [])
     setParticipants(partRes.data ?? [])
     setFiles(filesRes.data ?? [])
+    setZeitplan(zeitplanRes.data ?? [])
   }
 
   async function addExtraColumn() {
@@ -137,10 +147,15 @@ export default function ProjectPage() {
     setExtraColumns(updated)
   }
 
-  async function updateExtraField(participantId: string, col: string, value: string, currentExtra: Record<string, string> | null) {
-    const updated = { ...(currentExtra ?? {}), [col]: value }
-    await supabase.from('participants').update({ extra: updated }).eq('id', participantId)
-    setParticipants(participants.map(p => p.id === participantId ? { ...p, extra: updated } : p))
+  // Fix: use functional setState so we always read the latest extra data (prevents stale closure bug)
+  function updateExtraField(participantId: string, col: string, value: string) {
+    setParticipants(prev => {
+      const p = prev.find(p => p.id === participantId)
+      if (!p) return prev
+      const updatedExtra = { ...(p.extra ?? {}), [col]: value }
+      void supabase.from('participants').update({ extra: updatedExtra }).eq('id', participantId)
+      return prev.map(p => p.id === participantId ? { ...p, extra: updatedExtra } : p)
+    })
   }
 
   useEffect(() => { loadAll() }, [projectId])
@@ -162,12 +177,12 @@ export default function ProjectPage() {
 
   async function toggleTask(id: string, erledigt: boolean) {
     await supabase.from('tasks').update({ erledigt: !erledigt }).eq('id', id)
-    setTasks(tasks.map(t => t.id === id ? { ...t, erledigt: !erledigt } : t))
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, erledigt: !erledigt } : t))
   }
 
   async function deleteTask(id: string) {
     await supabase.from('tasks').delete().eq('id', id)
-    setTasks(tasks.filter(t => t.id !== id))
+    setTasks(prev => prev.filter(t => t.id !== id))
   }
 
   function startEditTask(task: Task) {
@@ -188,7 +203,7 @@ export default function ProjectPage() {
       verantwortliche: editingTask.verantwortliche.trim() || null,
       deadline: editingTask.deadline || null,
     }).eq('id', editingTaskId)
-    setTasks(tasks.map(t => t.id === editingTaskId ? {
+    setTasks(prev => prev.map(t => t.id === editingTaskId ? {
       ...t,
       aufgabe: editingTask.aufgabe.trim(),
       beschreibung: editingTask.beschreibung.trim() || null,
@@ -214,12 +229,58 @@ export default function ProjectPage() {
 
   async function updateParticipant(id: string, field: string, value: string | boolean | null) {
     await supabase.from('participants').update({ [field]: value }).eq('id', id)
-    setParticipants(participants.map(p => p.id === id ? { ...p, [field]: value } : p))
+    setParticipants(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p))
   }
 
   async function deleteParticipant(id: string) {
     await supabase.from('participants').delete().eq('id', id)
-    setParticipants(participants.filter(p => p.id !== id))
+    setParticipants(prev => prev.filter(p => p.id !== id))
+  }
+
+  // Zeitplan
+  async function addZeitplanEintrag() {
+    if (!newZeitplan.programmpunkt.trim()) return
+    await supabase.from('zeitplan_eintraege').insert({
+      project_id: projectId,
+      uhrzeit: newZeitplan.uhrzeit.trim() || null,
+      programmpunkt: newZeitplan.programmpunkt.trim(),
+      ort: newZeitplan.ort.trim() || null,
+      verantwortlich: newZeitplan.verantwortlich.trim() || null,
+      bemerkung: newZeitplan.bemerkung.trim() || null,
+      sort_order: zeitplan.length,
+    })
+    setNewZeitplan(EMPTY_ZEITPLAN)
+    setShowZeitplanForm(false)
+    loadAll()
+  }
+
+  function startEditZeitplan(e: ZeitplanEintrag) {
+    setEditingZeitplanId(e.id)
+    setEditingZeitplan({
+      uhrzeit: e.uhrzeit ?? '',
+      programmpunkt: e.programmpunkt,
+      ort: e.ort ?? '',
+      verantwortlich: e.verantwortlich ?? '',
+      bemerkung: e.bemerkung ?? '',
+    })
+  }
+
+  async function saveEditZeitplan() {
+    if (!editingZeitplanId || !editingZeitplan.programmpunkt.trim()) return
+    await supabase.from('zeitplan_eintraege').update({
+      uhrzeit: editingZeitplan.uhrzeit.trim() || null,
+      programmpunkt: editingZeitplan.programmpunkt.trim(),
+      ort: editingZeitplan.ort.trim() || null,
+      verantwortlich: editingZeitplan.verantwortlich.trim() || null,
+      bemerkung: editingZeitplan.bemerkung.trim() || null,
+    }).eq('id', editingZeitplanId)
+    setEditingZeitplanId(null)
+    loadAll()
+  }
+
+  async function deleteZeitplanEintrag(id: string) {
+    await supabase.from('zeitplan_eintraege').delete().eq('id', id)
+    setZeitplan(prev => prev.filter(e => e.id !== id))
   }
 
   // Files
@@ -269,6 +330,9 @@ export default function ProjectPage() {
   if (!project) return <div className="p-6 text-gray-500">Laden…</div>
 
   const cols = project.participant_template ? TEMPLATE_COLS[project.participant_template] : TEMPLATE_COLS.meeting
+  const sortedParticipants = [...participants].sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '', 'de')
+  )
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto">
@@ -311,6 +375,7 @@ export default function ProjectPage() {
         {[
           { key: 'aufgaben', label: `Aufgaben (${tasks.filter(t => !t.erledigt).length})`, short: `Aufgaben` },
           ...(project.has_participant_list ? [{ key: 'teilnehmer', label: `Teilnehmer*innen (${participants.length})`, short: `Personen` }] : []),
+          { key: 'zeitplan', label: `Zeitplan (${zeitplan.length})`, short: `Zeitplan` },
           { key: 'dateien', label: `Dateien (${files.length})`, short: `Dateien` },
         ].map(({ key, label, short }) => (
           <button
@@ -485,7 +550,12 @@ export default function ProjectPage() {
       {/* Teilnehmer*innen Tab */}
       {tab === 'teilnehmer' && project.has_participant_list && (
         <div>
-          <div className="flex justify-end mb-3">
+          <div className="flex items-center justify-between mb-3">
+            {/* Teilnehmerzähler */}
+            <span className="text-sm text-gray-500">
+              {participants.length} {participants.length === 1 ? 'Person' : 'Personen'} ·{' '}
+              {participants.filter(p => p.anwesend).length} anwesend
+            </span>
             <button
               onClick={() => setShowParticipantForm(!showParticipantForm)}
               className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
@@ -495,8 +565,8 @@ export default function ProjectPage() {
           </div>
 
           {showParticipantForm && (
-            <div className="mb-4 p-4 bg-white border border-gray-200 rounded-xl flex gap-3 items-end">
-              <div className="flex-1">
+            <div className="mb-4 p-4 bg-white border border-gray-200 rounded-xl flex gap-3 items-end flex-wrap">
+              <div className="flex-1 min-w-[140px]">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
                 <input
                   type="text"
@@ -507,7 +577,7 @@ export default function ProjectPage() {
                   autoFocus
                 />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-[140px]">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Rolle</label>
                 <input
                   type="text"
@@ -538,11 +608,16 @@ export default function ProjectPage() {
                       </th>
                     ))}
                     {extraColumns.map(col => (
-                      <th key={col} className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap text-xs group">
+                      <th key={col} className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap text-xs">
                         <span className="flex items-center gap-1">
                           {col}
-                          <button onClick={() => removeExtraColumn(col)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500">
-                            <X size={10} />
+                          {/* Always visible delete button — no hover-only on iPad */}
+                          <button
+                            onClick={() => removeExtraColumn(col)}
+                            className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
+                            title={`Spalte "${col}" löschen`}
+                          >
+                            <X size={11} />
                           </button>
                         </span>
                       </th>
@@ -566,7 +641,7 @@ export default function ProjectPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {participants.map(p => (
+                  {sortedParticipants.map(p => (
                     <tr key={p.id} className="hover:bg-gray-50">
                       {cols.map(col => (
                         <td key={col} className="px-1 py-1">
@@ -596,7 +671,7 @@ export default function ProjectPage() {
                           <input
                             type="text"
                             value={(p.extra ?? {})[col] ?? ''}
-                            onChange={e => updateExtraField(p.id, col, e.target.value, p.extra)}
+                            onChange={e => updateExtraField(p.id, col, e.target.value)}
                             size={Math.max(3, ((p.extra ?? {})[col] ?? '').length)}
                             className="px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
                             placeholder="—"
@@ -608,6 +683,165 @@ export default function ProjectPage() {
                           <Trash2 size={14} />
                         </button>
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Zeitplan Tab */}
+      {tab === 'zeitplan' && (
+        <div>
+          <div className="flex justify-end mb-3">
+            <button
+              onClick={() => setShowZeitplanForm(!showZeitplanForm)}
+              className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
+            >
+              <Plus size={16} /> Eintrag hinzufügen
+            </button>
+          </div>
+
+          {showZeitplanForm && (
+            <div className="mb-4 p-4 bg-white border border-gray-200 rounded-xl space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Uhrzeit</label>
+                  <input
+                    type="text"
+                    value={newZeitplan.uhrzeit}
+                    onChange={e => setNewZeitplan({ ...newZeitplan, uhrzeit: e.target.value })}
+                    placeholder="z.B. 09:00"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocus
+                  />
+                </div>
+                <div className="col-span-2 sm:col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Programmpunkt *</label>
+                  <input
+                    type="text"
+                    value={newZeitplan.programmpunkt}
+                    onChange={e => setNewZeitplan({ ...newZeitplan, programmpunkt: e.target.value })}
+                    placeholder="Was findet statt?"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Ort / Raum</label>
+                  <input
+                    type="text"
+                    value={newZeitplan.ort}
+                    onChange={e => setNewZeitplan({ ...newZeitplan, ort: e.target.value })}
+                    placeholder="z.B. Aula"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Verantwortlich</label>
+                  <input
+                    type="text"
+                    value={newZeitplan.verantwortlich}
+                    onChange={e => setNewZeitplan({ ...newZeitplan, verantwortlich: e.target.value })}
+                    placeholder="Name"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Bemerkung</label>
+                  <input
+                    type="text"
+                    value={newZeitplan.bemerkung}
+                    onChange={e => setNewZeitplan({ ...newZeitplan, bemerkung: e.target.value })}
+                    placeholder="Optional"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={addZeitplanEintrag} disabled={!newZeitplan.programmpunkt.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                  Hinzufügen
+                </button>
+                <button onClick={() => { setShowZeitplanForm(false); setNewZeitplan(EMPTY_ZEITPLAN) }}
+                  className="px-3 py-2 text-gray-600 text-sm">Abbrechen</button>
+              </div>
+            </div>
+          )}
+
+          {zeitplan.length === 0 ? (
+            <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
+              <Calendar size={36} className="mx-auto text-gray-300 mb-2" />
+              <p className="text-sm text-gray-500">Noch keine Zeitplaneinträge</p>
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+              <table className="text-sm min-w-max w-full">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="text-left px-3 py-2 font-medium text-gray-600 whitespace-nowrap text-xs w-20">Uhrzeit</th>
+                    <th className="text-left px-3 py-2 font-medium text-gray-600 whitespace-nowrap text-xs">Programmpunkt</th>
+                    <th className="text-left px-3 py-2 font-medium text-gray-600 whitespace-nowrap text-xs">Ort / Raum</th>
+                    <th className="text-left px-3 py-2 font-medium text-gray-600 whitespace-nowrap text-xs">Verantwortlich</th>
+                    <th className="text-left px-3 py-2 font-medium text-gray-600 whitespace-nowrap text-xs">Bemerkung</th>
+                    <th className="w-16"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {zeitplan.map(entry => (
+                    <tr key={entry.id} className="hover:bg-gray-50">
+                      {editingZeitplanId === entry.id ? (
+                        <>
+                          <td className="px-2 py-1.5">
+                            <input autoFocus value={editingZeitplan.uhrzeit}
+                              onChange={e => setEditingZeitplan({ ...editingZeitplan, uhrzeit: e.target.value })}
+                              className="w-16 px-2 py-1 border border-blue-400 rounded text-sm focus:outline-none" placeholder="09:00" />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input value={editingZeitplan.programmpunkt}
+                              onChange={e => setEditingZeitplan({ ...editingZeitplan, programmpunkt: e.target.value })}
+                              className="w-40 px-2 py-1 border border-blue-400 rounded text-sm focus:outline-none" />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input value={editingZeitplan.ort}
+                              onChange={e => setEditingZeitplan({ ...editingZeitplan, ort: e.target.value })}
+                              className="w-28 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none" placeholder="Ort" />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input value={editingZeitplan.verantwortlich}
+                              onChange={e => setEditingZeitplan({ ...editingZeitplan, verantwortlich: e.target.value })}
+                              className="w-28 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none" placeholder="Name" />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input value={editingZeitplan.bemerkung}
+                              onChange={e => setEditingZeitplan({ ...editingZeitplan, bemerkung: e.target.value })}
+                              className="w-32 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none" placeholder="Bemerkung" />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <div className="flex gap-1">
+                              <button onClick={saveEditZeitplan} className="p-1 text-green-600 hover:text-green-700"><Check size={15} /></button>
+                              <button onClick={() => setEditingZeitplanId(null)} className="p-1 text-gray-400 hover:text-gray-600"><X size={15} /></button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-3 py-2 font-medium text-blue-700 text-xs whitespace-nowrap">
+                            {entry.uhrzeit || '—'}
+                          </td>
+                          <td className="px-3 py-2 font-medium text-gray-900">{entry.programmpunkt}</td>
+                          <td className="px-3 py-2 text-gray-500 text-xs">{entry.ort || '—'}</td>
+                          <td className="px-3 py-2 text-gray-500 text-xs">{entry.verantwortlich || '—'}</td>
+                          <td className="px-3 py-2 text-gray-500 text-xs">{entry.bemerkung || '—'}</td>
+                          <td className="px-2 py-2">
+                            <div className="flex gap-1">
+                              <button onClick={() => startEditZeitplan(entry)} className="p-1 text-gray-300 hover:text-blue-500"><Pencil size={14} /></button>
+                              <button onClick={() => deleteZeitplanEintrag(entry.id)} className="p-1 text-gray-300 hover:text-red-500"><Trash2 size={14} /></button>
+                            </div>
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>

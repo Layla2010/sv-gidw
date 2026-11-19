@@ -78,6 +78,18 @@ export interface ProjectFile {
   created_at: string
 }
 
+export interface ZeitplanEintrag {
+  id: string
+  project_id: string
+  uhrzeit: string | null
+  programmpunkt: string
+  ort: string | null
+  verantwortlich: string | null
+  bemerkung: string | null
+  sort_order: number
+  created_at: string
+}
+
 export interface SatzungFile {
   id: string
   file_name: string
