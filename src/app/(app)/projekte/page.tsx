@@ -10,6 +10,14 @@ import { Plus, FolderOpen, Trash2, Users } from 'lucide-react'
 import type { Project } from '@/types'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
+function formatDatum(von: string | null, bis: string | null): string {
+  const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
+  if (von && bis && von !== bis) return `${fmt(von)} – ${fmt(bis)}`
+  if (von) return fmt(von)
+  if (bis) return fmt(bis)
+  return ''
+}
+
 const TEMPLATES = [
   { value: 'overnight', label: 'Übernachtungs-Event', cols: 'Name, Rolle, Klasse, Anwesend, Gruppe, Raum, Ü.Nacht, Buffet, Gegangen' },
   { value: 'daytrip', label: 'Tagesausflug', cols: 'Name, Rolle, Klasse, Anwesend, Gruppe, Gegangen' },
@@ -22,6 +30,8 @@ export default function ProjektePage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [datumVon, setDatumVon] = useState('')
+  const [datumBis, setDatumBis] = useState('')
   const [hasParticipants, setHasParticipants] = useState(false)
   const [template, setTemplate] = useState<string>('overnight')
   const supabase = createClient()
@@ -44,6 +54,8 @@ export default function ProjektePage() {
       .insert({
         name: name.trim(),
         description: description.trim() || null,
+        datum_von: datumVon || null,
+        datum_bis: datumBis || null,
         has_participant_list: hasParticipants,
         participant_template: hasParticipants ? template : null,
       })
@@ -102,6 +114,27 @@ export default function ProjektePage() {
               rows={2}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Datum von (optional)</label>
+              <input
+                type="date"
+                value={datumVon}
+                onChange={e => setDatumVon(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Datum bis (optional)</label>
+              <input
+                type="date"
+                value={datumBis}
+                onChange={e => setDatumBis(e.target.value)}
+                min={datumVon}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
           <div>
             <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
@@ -165,6 +198,11 @@ export default function ProjektePage() {
                 </div>
               </div>
               <h3 className="font-semibold text-gray-900 mb-1">{project.name}</h3>
+              {(project.datum_von || project.datum_bis) && (
+                <p className="text-sm text-blue-700 font-medium mb-1">
+                  {formatDatum(project.datum_von, project.datum_bis)}
+                </p>
+              )}
               {project.description && (
                 <p className="text-sm text-gray-600 line-clamp-2 mb-2">{project.description}</p>
               )}

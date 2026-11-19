@@ -118,6 +118,14 @@ const ZEITPLAN_COL_LABELS: Record<string, string> = {
 }
 const EMPTY_ZEITPLAN = { uhrzeit: '', datum: '', programmpunkt: '', ort: '', verantwortlich: '', bemerkung: '' }
 
+function formatProjektDatum(von: string | null, bis: string | null): string {
+  const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
+  if (von && bis && von !== bis) return `${fmt(von)} – ${fmt(bis)}`
+  if (von) return fmt(von)
+  if (bis) return fmt(bis)
+  return ''
+}
+
 function sortByUhrzeit(entries: ZeitplanEintrag[]): ZeitplanEintrag[] {
   return [...entries].sort((a, b) => {
     if (!a.uhrzeit && !b.uhrzeit) return 0
@@ -173,7 +181,8 @@ export default function ProjectPage() {
   const [zeitplan, setZeitplan] = useState<ZeitplanEintrag[]>([])
   const [confirmDeleteFileId, setConfirmDeleteFileId] = useState<string | null>(null)
   const [confirmDeleteProject, setConfirmDeleteProject] = useState(false)
-  const [tab, setTab] = useState<'aufgaben' | 'teilnehmer' | 'dateien' | 'zeitplan'>('aufgaben')
+  const [tab, setTab] = useState<'infos' | 'aufgaben' | 'teilnehmer' | 'dateien' | 'zeitplan'>('infos')
+  const [infos, setInfos] = useState('')
 
   // Task form
   const [newTask, setNewTask] = useState({ aufgabe: '', beschreibung: '', verantwortliche: '', deadline: '' })
@@ -238,6 +247,7 @@ export default function ProjectPage() {
     ])
     const proj = projRes.data
     setProject(proj)
+    setInfos(proj?.infos ?? '')
     const hidden = proj?.hidden_columns ?? []
     const extra = proj?.extra_columns ?? []
     const template = proj?.participant_template ?? 'meeting'
@@ -412,6 +422,10 @@ export default function ProjectPage() {
   async function deleteParticipant(id: string) {
     await supabase.from('participants').delete().eq('id', id)
     setParticipants(prev => prev.filter(p => p.id !== id))
+  }
+
+  async function saveInfos(value: string) {
+    await supabase.from('projects').update({ infos: value || null }).eq('id', projectId)
   }
 
   // Zeitplan
@@ -629,6 +643,11 @@ export default function ProjectPage() {
         </Link>
         <div className="flex-1">
           <h1 className="text-2xl font-semibold text-gray-900">{project.name}</h1>
+          {(project.datum_von || project.datum_bis) && (
+            <p className="text-sm font-medium text-blue-700 mt-0.5">
+              {formatProjektDatum(project.datum_von, project.datum_bis)}
+            </p>
+          )}
           {project.description && <p className="text-sm text-gray-500 mt-0.5">{project.description}</p>}
         </div>
         <button
@@ -642,6 +661,7 @@ export default function ProjectPage() {
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl overflow-x-auto max-w-full">
         {[
+          { key: 'infos', label: 'Infos', short: 'Infos' },
           { key: 'aufgaben', label: `Aufgaben (${tasks.filter(t => !t.erledigt).length})`, short: `Aufgaben` },
           ...(project.has_participant_list ? [{ key: 'teilnehmer', label: `Teilnehmer*innen (${participants.length})`, short: `Personen` }] : []),
           { key: 'zeitplan', label: `Zeitplan (${zeitplan.length})`, short: `Zeitplan` },
@@ -659,6 +679,19 @@ export default function ProjectPage() {
           </button>
         ))}
       </div>
+
+      {/* Infos Tab */}
+      {tab === 'infos' && (
+        <div>
+          <textarea
+            value={infos}
+            onChange={e => setInfos(e.target.value)}
+            onBlur={e => saveInfos(e.target.value)}
+            placeholder="Allgemeine Informationen zum Projekt, Rahmendaten, Hinweise für Helfende…"
+            className="w-full min-h-[300px] px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+          />
+        </div>
+      )}
 
       {/* Aufgaben Tab */}
       {tab === 'aufgaben' && (

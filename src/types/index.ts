@@ -33,6 +33,9 @@ export interface Project {
   id: string
   name: string
   description: string | null
+  datum_von: string | null
+  datum_bis: string | null
+  infos: string | null
   has_participant_list: boolean
   participant_template: 'overnight' | 'daytrip' | 'meeting' | null
   extra_columns: string[]
