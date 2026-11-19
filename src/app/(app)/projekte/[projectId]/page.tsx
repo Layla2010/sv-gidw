@@ -1027,12 +1027,12 @@ export default function ProjectPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Bemerkung</label>
-                  <input
-                    type="text"
+                  <textarea
                     value={newZeitplan.bemerkung}
                     onChange={e => setNewZeitplan({ ...newZeitplan, bemerkung: e.target.value })}
                     placeholder="Optional"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                   />
                 </div>
               </div>
@@ -1108,6 +1108,15 @@ export default function ProjectPage() {
                           {zeitplanOrderedColumns.map(col => (
                             <td key={col} className="px-1 py-1">
                               {zeitplanBaseColSet.has(col) ? (
+                                col === 'bemerkung' ? (
+                                  <textarea
+                                    value={(entry[col as keyof ZeitplanEintrag] as string) ?? ''}
+                                    onChange={e => updateZeitplanField(entry.id, col, e.target.value)}
+                                    rows={Math.max(1, ((entry[col as keyof ZeitplanEintrag] as string) ?? '').split('\n').length)}
+                                    className="px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent resize-none w-full min-w-[120px]"
+                                    placeholder="—"
+                                  />
+                                ) : (
                                 <input
                                   type="text"
                                   value={(entry[col as keyof ZeitplanEintrag] as string) ?? ''}
@@ -1116,6 +1125,7 @@ export default function ProjectPage() {
                                   className="px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
                                   placeholder="—"
                                 />
+                                )
                               ) : (
                                 <input
                                   type="text"
