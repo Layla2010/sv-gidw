@@ -197,7 +197,8 @@ export default function ProjectPage() {
   )
 
   // Participant form
-  const [newParticipant, setNewParticipant] = useState({ name: '', rolle: '' })
+  const [newParticipant, setNewParticipant] = useState<Record<string, string | boolean>>({})
+  const [newParticipantExtra, setNewParticipantExtra] = useState<Record<string, string>>({})
   const [showParticipantForm, setShowParticipantForm] = useState(false)
   const [confirmDeleteParticipantId, setConfirmDeleteParticipantId] = useState<string | null>(null)
 
@@ -375,14 +376,30 @@ export default function ProjectPage() {
 
   // Participants
   async function addParticipant() {
-    if (!newParticipant.name.trim()) return
-    await supabase.from('participants').insert({
-      project_id: projectId,
-      name: newParticipant.name.trim(),
-      rolle: newParticipant.rolle.trim() || null,
-      sort_order: participants.length,
-    })
-    setNewParticipant({ name: '', rolle: '' })
+    const name = ((newParticipant.name as string) ?? '').trim()
+    if (!name) return
+    const fields: Record<string, unknown> = { project_id: projectId, sort_order: participants.length }
+    for (const col of orderedColumns) {
+      if (templateColSet.has(col)) {
+        if (BOOL_COLS.has(col)) {
+          fields[col] = newParticipant[col] ?? false
+        } else {
+          const val = ((newParticipant[col] as string) ?? '').trim()
+          fields[col] = val || null
+        }
+      }
+    }
+    const extraObj: Record<string, string> = {}
+    for (const col of orderedColumns) {
+      if (!templateColSet.has(col)) {
+        const val = (newParticipantExtra[col] ?? '').trim()
+        if (val) extraObj[col] = val
+      }
+    }
+    if (Object.keys(extraObj).length > 0) fields.extra = extraObj
+    await supabase.from('participants').insert(fields)
+    setNewParticipant({})
+    setNewParticipantExtra({})
     setShowParticipantForm(false)
     loadAll()
   }
@@ -816,30 +833,47 @@ export default function ProjectPage() {
           </div>
 
           {showParticipantForm && (
-            <div className="mb-4 p-4 bg-white border border-gray-200 rounded-xl flex gap-3 items-end flex-wrap">
-              <div className="flex-1 min-w-[140px]">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
-                <input
-                  type="text"
-                  value={newParticipant.name}
-                  onChange={e => setNewParticipant({ ...newParticipant, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Name"
-                  autoFocus
-                />
+            <div className="mb-4 p-4 bg-white border border-gray-200 rounded-xl space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {orderedColumns.map(col => {
+                  const label = templateColSet.has(col) ? (COL_LABELS[col] ?? col) : col
+                  if (templateColSet.has(col) && BOOL_COLS.has(col)) {
+                    return (
+                      <div key={col} className="flex items-center gap-2 pt-5">
+                        <input
+                          type="checkbox"
+                          id={`new-p-${col}`}
+                          checked={!!(newParticipant[col])}
+                          onChange={e => setNewParticipant(prev => ({ ...prev, [col]: e.target.checked }))}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <label htmlFor={`new-p-${col}`} className="text-sm text-gray-700">{label}</label>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div key={col}>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        {label}{col === 'name' ? ' *' : ''}
+                      </label>
+                      <input
+                        type="text"
+                        value={templateColSet.has(col) ? ((newParticipant[col] as string) ?? '') : (newParticipantExtra[col] ?? '')}
+                        onChange={e => templateColSet.has(col)
+                          ? setNewParticipant(prev => ({ ...prev, [col]: e.target.value }))
+                          : setNewParticipantExtra(prev => ({ ...prev, [col]: e.target.value }))}
+                        autoFocus={col === 'name'}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder={col === 'name' ? 'Name' : '—'}
+                      />
+                    </div>
+                  )
+                })}
               </div>
-              <div className="flex-1 min-w-[140px]">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Rolle</label>
-                <input
-                  type="text"
-                  value={newParticipant.rolle}
-                  onChange={e => setNewParticipant({ ...newParticipant, rolle: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="z.B. SV-Mitglied"
-                />
+              <div className="flex gap-2">
+                <button onClick={addParticipant} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Hinzufügen</button>
+                <button onClick={() => { setShowParticipantForm(false); setNewParticipant({}); setNewParticipantExtra({}) }} className="px-3 py-2 text-gray-600 text-sm">Abbrechen</button>
               </div>
-              <button onClick={addParticipant} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Hinzufügen</button>
-              <button onClick={() => setShowParticipantForm(false)} className="px-3 py-2 text-gray-600 text-sm">✕</button>
             </div>
           )}
 
