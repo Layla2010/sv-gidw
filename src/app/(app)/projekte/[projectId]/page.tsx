@@ -8,10 +8,51 @@ import { format, differenceInDays, isPast, isToday } from 'date-fns'
 import { de } from 'date-fns/locale'
 import {
   ArrowLeft, Plus, Trash2, Upload, Download, AlertCircle,
-  Clock, CheckSquare, Square, Users, File, FolderOpen, Pencil, Check, X, Calendar,
+  Clock, CheckSquare, Square, Users, File, FolderOpen, Pencil, Check, X, Calendar, GripVertical,
 } from 'lucide-react'
 import type { Project, Task, Participant, ProjectFile, ZeitplanEintrag } from '@/types'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext, horizontalListSortingStrategy,
+  useSortable, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+
+function SortableColHeader({
+  col, label, onDelete,
+}: { col: string; label: string; onDelete: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: col })
+  return (
+    <th
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap text-xs select-none"
+    >
+      <span className="flex items-center gap-0.5">
+        <span
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 touch-none"
+          title="Spalte verschieben"
+        >
+          <GripVertical size={12} />
+        </span>
+        {label}
+        <button
+          onClick={onDelete}
+          className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0 ml-0.5"
+          title={`Spalte "${label}" ausblenden`}
+        >
+          <X size={11} />
+        </button>
+      </span>
+    </th>
+  )
+}
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_TYPES = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
@@ -90,9 +131,15 @@ export default function ProjectPage() {
   // Custom columns
   const [extraColumns, setExtraColumns] = useState<string[]>([])
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
+  const [orderedColumns, setOrderedColumns] = useState<string[]>([])
   const [newColName, setNewColName] = useState('')
   const [showAddCol, setShowAddCol] = useState(false)
   const [confirmDeleteCol, setConfirmDeleteCol] = useState<{ col: string, isExtra: boolean } | null>(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  )
 
   // Participant form
   const [newParticipant, setNewParticipant] = useState({ name: '', rolle: '' })
@@ -125,9 +172,21 @@ export default function ProjectPage() {
       supabase.from('project_files').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
       supabase.from('zeitplan_eintraege').select('*').eq('project_id', projectId).order('sort_order').order('created_at'),
     ])
-    setProject(projRes.data)
-    setExtraColumns(projRes.data?.extra_columns ?? [])
-    setHiddenColumns(projRes.data?.hidden_columns ?? [])
+    const proj = projRes.data
+    setProject(proj)
+    const hidden = proj?.hidden_columns ?? []
+    const extra = proj?.extra_columns ?? []
+    const template = proj?.participant_template ?? 'meeting'
+    const templateCols = (TEMPLATE_COLS[template] ?? TEMPLATE_COLS.meeting)
+      .filter(c => !hidden.includes(c)) as string[]
+    const allActive = [...templateCols, ...extra]
+    const stored = proj?.column_order
+    const ordered = stored?.length
+      ? [...stored.filter((c: string) => allActive.includes(c)), ...allActive.filter(c => !stored.includes(c))]
+      : allActive
+    setExtraColumns(extra)
+    setHiddenColumns(hidden)
+    setOrderedColumns(ordered)
     setTasks(tasksRes.data ?? [])
     setParticipants(partRes.data ?? [])
     setFiles(filesRes.data ?? [])
@@ -137,24 +196,38 @@ export default function ProjectPage() {
   async function addExtraColumn() {
     const name = newColName.trim()
     if (!name) return
-    const updated = [...extraColumns, name]
-    await supabase.from('projects').update({ extra_columns: updated }).eq('id', projectId)
-    setExtraColumns(updated)
+    const updatedExtra = [...extraColumns, name]
+    const updatedOrder = [...orderedColumns, name]
+    await supabase.from('projects').update({ extra_columns: updatedExtra, column_order: updatedOrder }).eq('id', projectId)
+    setExtraColumns(updatedExtra)
+    setOrderedColumns(updatedOrder)
     setNewColName('')
     setShowAddCol(false)
   }
 
   async function removeColumn(col: string, isExtra: boolean) {
+    const updatedOrder = orderedColumns.filter(c => c !== col)
     if (isExtra) {
-      const updated = extraColumns.filter(c => c !== col)
-      await supabase.from('projects').update({ extra_columns: updated }).eq('id', projectId)
-      setExtraColumns(updated)
+      const updatedExtra = extraColumns.filter(c => c !== col)
+      await supabase.from('projects').update({ extra_columns: updatedExtra, column_order: updatedOrder }).eq('id', projectId)
+      setExtraColumns(updatedExtra)
     } else {
-      const updated = [...hiddenColumns, col]
-      await supabase.from('projects').update({ hidden_columns: updated }).eq('id', projectId)
-      setHiddenColumns(updated)
+      const updatedHidden = [...hiddenColumns, col]
+      await supabase.from('projects').update({ hidden_columns: updatedHidden, column_order: updatedOrder }).eq('id', projectId)
+      setHiddenColumns(updatedHidden)
     }
+    setOrderedColumns(updatedOrder)
     setConfirmDeleteCol(null)
+  }
+
+  async function handleColumnDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = orderedColumns.indexOf(active.id as string)
+    const newIndex = orderedColumns.indexOf(over.id as string)
+    const newOrder = arrayMove(orderedColumns, oldIndex, newIndex)
+    setOrderedColumns(newOrder)
+    await supabase.from('projects').update({ column_order: newOrder }).eq('id', projectId)
   }
 
   // Fix: use functional setState so we always read the latest extra data (prevents stale closure bug)
@@ -339,8 +412,9 @@ export default function ProjectPage() {
 
   if (!project) return <div className="p-6 text-gray-500">Laden…</div>
 
-  const allCols = project.participant_template ? TEMPLATE_COLS[project.participant_template] : TEMPLATE_COLS.meeting
-  const cols = allCols.filter(c => !hiddenColumns.includes(c))
+  const templateColSet = new Set(
+    (TEMPLATE_COLS[project.participant_template ?? 'meeting'] ?? TEMPLATE_COLS.meeting) as string[]
+  )
   const sortedParticipants = [...participants].sort((a, b) =>
     (a.name || '').localeCompare(b.name || '', 'de')
   )
@@ -616,104 +690,87 @@ export default function ProjectPage() {
               <p className="text-sm text-gray-500">Noch keine Teilnehmer*innen</p>
             </div>
           ) : (
-            <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-              <table className="text-sm min-w-max w-full">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    {cols.map(col => (
-                      <th key={col} className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap text-xs">
-                        <span className="flex items-center gap-1">
-                          {COL_LABELS[col]}
-                          <button
-                            onClick={() => setConfirmDeleteCol({ col, isExtra: false })}
-                            className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
-                            title={`Spalte "${COL_LABELS[col]}" ausblenden`}
-                          >
-                            <X size={11} />
-                          </button>
-                        </span>
-                      </th>
-                    ))}
-                    {extraColumns.map(col => (
-                      <th key={col} className="text-left px-2 py-2 font-medium text-gray-600 whitespace-nowrap text-xs">
-                        <span className="flex items-center gap-1">
-                          {col}
-                          <button
-                            onClick={() => setConfirmDeleteCol({ col, isExtra: true })}
-                            className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
-                            title={`Spalte "${col}" löschen`}
-                          >
-                            <X size={11} />
-                          </button>
-                        </span>
-                      </th>
-                    ))}
-                    <th className="px-2 py-2 w-8">
-                      {showAddCol ? (
-                        <div className="flex items-center gap-1">
-                          <input autoFocus value={newColName} onChange={e => setNewColName(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') addExtraColumn(); if (e.key === 'Escape') setShowAddCol(false) }}
-                            className="w-20 px-1 py-0.5 border border-blue-400 rounded text-xs focus:outline-none"
-                            placeholder="Name" />
-                          <button onClick={addExtraColumn} className="text-green-600"><Check size={12} /></button>
-                          <button onClick={() => setShowAddCol(false)} className="text-gray-400"><X size={12} /></button>
-                        </div>
-                      ) : (
-                        <button onClick={() => setShowAddCol(true)} className="p-1 text-gray-400 hover:text-blue-500 rounded">
-                          <Plus size={13} />
-                        </button>
-                      )}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {sortedParticipants.map(p => (
-                    <tr key={p.id} className="hover:bg-gray-50">
-                      {cols.map(col => (
-                        <td key={col} className="px-1 py-1">
-                          {BOOL_COLS.has(col) ? (
-                            <div className="flex justify-center">
-                              <input
-                                type="checkbox"
-                                checked={!!(p[col as keyof Participant])}
-                                onChange={e => updateParticipant(p.id, col, e.target.checked)}
-                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                              />
-                            </div>
-                          ) : (
-                            <input
-                              type="text"
-                              value={(p[col as keyof Participant] as string) ?? ''}
-                              onChange={e => updateParticipant(p.id, col, e.target.value)}
-                              size={Math.max(3, String(p[col as keyof Participant] ?? '').length)}
-                              className="px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
-                              placeholder="—"
-                            />
-                          )}
-                        </td>
-                      ))}
-                      {extraColumns.map(col => (
-                        <td key={col} className="px-1 py-1">
-                          <input
-                            type="text"
-                            value={(p.extra ?? {})[col] ?? ''}
-                            onChange={e => updateExtraField(p.id, col, e.target.value)}
-                            size={Math.max(3, ((p.extra ?? {})[col] ?? '').length)}
-                            className="px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
-                            placeholder="—"
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleColumnDragEnd}>
+              <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+                <table className="text-sm min-w-max w-full">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <SortableContext items={orderedColumns} strategy={horizontalListSortingStrategy}>
+                        {orderedColumns.map(col => (
+                          <SortableColHeader
+                            key={col}
+                            col={col}
+                            label={templateColSet.has(col) ? (COL_LABELS[col] ?? col) : col}
+                            onDelete={() => setConfirmDeleteCol({ col, isExtra: !templateColSet.has(col) })}
                           />
-                        </td>
-                      ))}
-                      <td className="px-1 py-1">
-                        <button onClick={() => deleteParticipant(p.id)} className="p-1 text-gray-300 hover:text-red-500">
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
+                        ))}
+                      </SortableContext>
+                      <th className="px-2 py-2 w-8">
+                        {showAddCol ? (
+                          <div className="flex items-center gap-1">
+                            <input autoFocus value={newColName} onChange={e => setNewColName(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') addExtraColumn(); if (e.key === 'Escape') setShowAddCol(false) }}
+                              className="w-20 px-1 py-0.5 border border-blue-400 rounded text-xs focus:outline-none"
+                              placeholder="Name" />
+                            <button onClick={addExtraColumn} className="text-green-600"><Check size={12} /></button>
+                            <button onClick={() => setShowAddCol(false)} className="text-gray-400"><X size={12} /></button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setShowAddCol(true)} className="p-1 text-gray-400 hover:text-blue-500 rounded">
+                            <Plus size={13} />
+                          </button>
+                        )}
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {sortedParticipants.map(p => (
+                      <tr key={p.id} className="hover:bg-gray-50">
+                        {orderedColumns.map(col => (
+                          <td key={col} className="px-1 py-1">
+                            {templateColSet.has(col) ? (
+                              BOOL_COLS.has(col) ? (
+                                <div className="flex justify-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!(p[col as keyof Participant])}
+                                    onChange={e => updateParticipant(p.id, col, e.target.checked)}
+                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                </div>
+                              ) : (
+                                <input
+                                  type="text"
+                                  value={(p[col as keyof Participant] as string) ?? ''}
+                                  onChange={e => updateParticipant(p.id, col, e.target.value)}
+                                  size={Math.max(3, String(p[col as keyof Participant] ?? '').length)}
+                                  className="px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
+                                  placeholder="—"
+                                />
+                              )
+                            ) : (
+                              <input
+                                type="text"
+                                value={(p.extra ?? {})[col] ?? ''}
+                                onChange={e => updateExtraField(p.id, col, e.target.value)}
+                                size={Math.max(3, ((p.extra ?? {})[col] ?? '').length)}
+                                className="px-1.5 py-0.5 border border-transparent hover:border-gray-300 focus:border-blue-500 rounded text-sm focus:outline-none bg-transparent"
+                                placeholder="—"
+                              />
+                            )}
+                          </td>
+                        ))}
+                        <td className="px-1 py-1">
+                          <button onClick={() => deleteParticipant(p.id)} className="p-1 text-gray-300 hover:text-red-500">
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </DndContext>
           )}
         </div>
       )}

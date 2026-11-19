@@ -37,6 +37,7 @@ export interface Project {
   participant_template: 'overnight' | 'daytrip' | 'meeting' | null
   extra_columns: string[]
   hidden_columns: string[]
+  column_order: string[] | null
   created_by: string
   created_at: string
   updated_at: string
